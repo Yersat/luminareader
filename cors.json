@@ -1,0 +1,15 @@
+[
+  {
+    "origin": [
+      "http://localhost:3000",
+      "https://lumina-reader-a5d10.web.app",
+      "https://lumina-reader-a5d10.firebaseapp.com",
+      "https://web.telegram.org",
+      "*"
+    ],
+    "method": ["GET", "HEAD", "OPTIONS"],
+    "responseHeader": ["Content-Type", "Content-Length", "Accept-Ranges", "Content-Range"],
+    "maxAgeSeconds": 3600
+  }
+]
+

@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // EPUB files - users can only access their own files
+    match /epubs/{userId}/{fileName} {
+      // Allow read if user owns the file
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+
+      // Allow write if user owns the file
+      // Note: EPUB files can have different MIME types (application/epub+zip, application/epub, etc.)
+      allow write: if isAuthenticated()
+                   && request.auth.uid == userId
+                   && (request.resource.contentType == 'application/epub+zip'
+                       || request.resource.contentType == 'application/epub'
+                       || request.resource.contentType == 'application/octet-stream');
+
+      // Allow delete if user owns the file
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Cover images - users can only access their own covers
+    match /covers/{userId}/{fileName} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() 
+                   && request.auth.uid == userId
+                   && request.resource.contentType.matches('image/.*');
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+  }
+}
+

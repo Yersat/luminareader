@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Lumina Reader</string>
+    <string name="title_activity_main">Lumina Reader</string>
+    <string name="package_name">com.yersat.LuminaReader</string>
+    <string name="custom_url_scheme">com.yersat.LuminaReader</string>
+</resources>

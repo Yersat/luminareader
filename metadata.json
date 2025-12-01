@@ -1,0 +1,5 @@
+{
+  "name": "Lumina Reader",
+  "description": "An elegant EPUB reader with an integrated AI reading assistant powered by Grok AI. Upload books, select text, and get instant explanations, translations, or summaries.",
+  "requestFramePermissions": []
+}
