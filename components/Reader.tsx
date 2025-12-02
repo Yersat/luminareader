@@ -38,17 +38,85 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
     const book = ePub(file);
     bookRef.current = book;
 
-    // Render book
+    // Get container dimensions for proper sizing
+    const container = viewerRef.current;
+    const containerWidth = container.clientWidth || window.innerWidth;
+    const containerHeight = container.clientHeight || window.innerHeight;
+
+    // Render book - use spread: 'none' to get single page view that fills the screen
+    // This works better for iPad/tablet responsive design
     const rendition = book.renderTo(viewerRef.current, {
-      width: '100%',
-      height: '100%',
+      width: containerWidth,
+      height: containerHeight,
       flow: 'paginated',
       manager: 'default',
+      spread: 'none', // Force single page view for consistent full-width rendering
     });
     renditionRef.current = rendition;
 
+    // Handle window resize for responsive behavior
+    const handleResize = () => {
+      if (renditionRef.current && viewerRef.current) {
+        const newWidth = viewerRef.current.clientWidth || window.innerWidth;
+        const newHeight = viewerRef.current.clientHeight || window.innerHeight;
+        renditionRef.current.resize(newWidth, newHeight);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    // Also handle orientation changes on mobile devices
+    window.addEventListener('orientationchange', () => {
+      setTimeout(handleResize, 100); // Delay to allow DOM to update
+    });
+
     // Display
     rendition.display(location || undefined);
+
+    // Use hooks to inject CSS into each content document as it loads
+    // This is more reliable than themes.default() for complex CSS
+    rendition.hooks.content.register((contents: any) => {
+      // Inject CSS for responsive layout
+      // Bottom padding is 80px to avoid text being hidden behind navigation controls
+      const css = `
+        html, body {
+          width: 100% !important;
+          max-width: 100% !important;
+          height: 100% !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          box-sizing: border-box !important;
+        }
+        body {
+          padding: 20px 5% 80px 5% !important;
+        }
+        /* Force images to scale properly */
+        img {
+          max-width: 100% !important;
+          width: auto !important;
+          height: auto !important;
+          display: block !important;
+          margin: 0 auto !important;
+        }
+        /* Cover images specifically */
+        img[src*="cover"], img.cover, .cover img {
+          max-height: 80vh !important;
+          width: auto !important;
+          margin: 0 auto !important;
+        }
+        svg {
+          max-width: 100% !important;
+          height: auto !important;
+        }
+        /* Ensure container elements fill width */
+        div, section, article {
+          max-width: 100% !important;
+        }
+        /* Text selection */
+        ::selection { background: #3b82f6; color: #fff; }
+        ::-moz-selection { background: #3b82f6; color: #fff; }
+      `;
+      contents.addStylesheetRules(css);
+    });
 
     // Event Listeners
     rendition.on('rendered', () => {
@@ -63,17 +131,6 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
       });
       rendition.themes.register('dark', {
         body: { color: '#dbdbdb', background: '#202020' }
-      });
-
-      // Inject custom CSS for text selection highlighting
-      const selectionCSS = `
-        ::selection { background: #3b82f6 !important; color: #fff !important; }
-        ::-moz-selection { background: #3b82f6 !important; color: #fff !important; }
-        .epubjs-hl { fill: #fbbf24; fill-opacity: 0.4; mix-blend-mode: multiply; }
-      `;
-      rendition.themes.default({
-        '::selection': { background: '#3b82f6', color: '#fff' },
-        '::-moz-selection': { background: '#3b82f6', color: '#fff' }
       });
 
       // Apply initial settings
@@ -141,6 +198,8 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
     });
 
     return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
       if (bookRef.current) {
         bookRef.current.destroy();
       }
@@ -148,10 +207,31 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file]);
 
-  // Handle Font Size Changes
+  // Handle Font Size Changes - must resize and redisplay to recalculate page layout
   useEffect(() => {
-    if (renditionRef.current) {
-        renditionRef.current.themes.fontSize(`${fontSize}%`);
+    if (renditionRef.current && viewerRef.current) {
+        const rendition = renditionRef.current;
+
+        // Apply the new font size
+        rendition.themes.fontSize(`${fontSize}%`);
+
+        // Force layout recalculation by resizing
+        // This is critical - without this, the content gets cut off when font size increases
+        const container = viewerRef.current;
+        const width = container.clientWidth || window.innerWidth;
+        const height = container.clientHeight || window.innerHeight;
+
+        // Small timeout to let the font size CSS apply first, then resize
+        setTimeout(() => {
+          if (renditionRef.current) {
+            renditionRef.current.resize(width, height);
+
+            // Redisplay at current location to recalculate page breaks
+            if (currentLocation) {
+              renditionRef.current.display(currentLocation);
+            }
+          }
+        }, 50);
     }
   }, [fontSize]);
 
@@ -199,14 +279,20 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         )}
       </div>
 
-      {/* Navigation Controls Overlay (Desktop hover / Mobile permanent) */}
-      <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-4 pointer-events-none z-10">
-         <button 
+      {/* Navigation Controls Overlay - positioned above safe area with proper spacing */}
+      {/* bottom = 16px base + safe-area-inset-bottom (34px on iPhone with home indicator) */}
+      <div
+        className="absolute left-4 right-4 md:left-8 md:right-8 flex items-center justify-center gap-4 md:gap-6 pointer-events-none z-10"
+        style={{
+          bottom: 'calc(16px + env(safe-area-inset-bottom, 20px))',
+        }}
+      >
+         <button
             onClick={prevPage}
-            className={`pointer-events-auto p-3 backdrop-blur shadow-lg rounded-full transition-all transform hover:scale-110 active:scale-95 border ${
-                theme === 'dark' 
-                ? 'bg-gray-800/90 text-gray-200 border-gray-700 hover:bg-indigo-600 hover:text-white' 
-                : 'bg-white/90 text-stone-700 border-stone-200 hover:bg-indigo-600 hover:text-white'
+            className={`pointer-events-auto p-3 md:p-4 backdrop-blur shadow-lg rounded-full transition-all transform hover:scale-110 active:scale-95 border min-w-[48px] min-h-[48px] md:min-w-[56px] md:min-h-[56px] flex items-center justify-center ${
+                theme === 'dark'
+                ? 'bg-gray-800/95 text-gray-200 border-gray-700 hover:bg-indigo-600 hover:text-white'
+                : 'bg-white/95 text-stone-700 border-stone-200 hover:bg-indigo-600 hover:text-white'
             }`}
             aria-label="Previous Page"
          >
@@ -214,27 +300,27 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
          </button>
 
          {/* Page Indicator */}
-         <div className={`pointer-events-auto px-5 py-3 backdrop-blur shadow-lg rounded-full text-sm font-semibold border min-w-[120px] text-center select-none flex flex-col items-center leading-tight ${
+         <div className={`pointer-events-auto px-5 py-2.5 md:px-6 md:py-3 backdrop-blur shadow-lg rounded-full text-sm md:text-base font-semibold border min-w-[110px] md:min-w-[140px] text-center select-none flex flex-col items-center leading-tight ${
              theme === 'dark'
-             ? 'bg-gray-800/90 text-gray-200 border-gray-700'
-             : 'bg-white/90 text-stone-600 border-stone-200'
+             ? 'bg-gray-800/95 text-gray-200 border-gray-700'
+             : 'bg-white/95 text-stone-600 border-stone-200'
          }`}>
             {isLocationsReady ? (
                 <>
                     <span className={theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}>{t('page')} {currentPage}</span>
-                    <span className="text-[10px] opacity-60 uppercase tracking-wider">{t('of')} {totalPages}</span>
+                    <span className="text-[10px] md:text-xs opacity-60 uppercase tracking-wider">{t('of')} {totalPages}</span>
                 </>
             ) : (
-                <span className="animate-pulse text-xs">{t('calculating')}</span>
+                <span className="animate-pulse text-xs md:text-sm">{t('calculating')}</span>
             )}
          </div>
 
-         <button 
+         <button
             onClick={nextPage}
-            className={`pointer-events-auto p-3 backdrop-blur shadow-lg rounded-full transition-all transform hover:scale-110 active:scale-95 border ${
-                theme === 'dark' 
-                ? 'bg-gray-800/90 text-gray-200 border-gray-700 hover:bg-indigo-600 hover:text-white' 
-                : 'bg-white/90 text-stone-700 border-stone-200 hover:bg-indigo-600 hover:text-white'
+            className={`pointer-events-auto p-3 md:p-4 backdrop-blur shadow-lg rounded-full transition-all transform hover:scale-110 active:scale-95 border min-w-[48px] min-h-[48px] md:min-w-[56px] md:min-h-[56px] flex items-center justify-center ${
+                theme === 'dark'
+                ? 'bg-gray-800/95 text-gray-200 border-gray-700 hover:bg-indigo-600 hover:text-white'
+                : 'bg-white/95 text-stone-700 border-stone-200 hover:bg-indigo-600 hover:text-white'
             }`}
             aria-label="Next Page"
          >
