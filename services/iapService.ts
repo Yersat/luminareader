@@ -1,0 +1,173 @@
+/**
+ * In-App Purchase Service using RevenueCat
+ * Handles subscriptions for iOS and Android
+ */
+
+import { Capacitor } from '@capacitor/core';
+import Purchases, {
+  PurchasesOfferings,
+  CustomerInfo,
+  PurchasesPackage,
+  LOG_LEVEL,
+} from '@revenuecat/purchases-capacitor';
+
+// RevenueCat API keys (configure these in your RevenueCat dashboard)
+const REVENUECAT_API_KEY_IOS = 'appl_YOUR_IOS_KEY'; // Replace with your iOS key
+const REVENUECAT_API_KEY_ANDROID = 'goog_YOUR_ANDROID_KEY'; // Replace with your Android key
+
+// Product identifiers (must match App Store Connect / Google Play Console)
+export const PRODUCT_IDS = {
+  MONTHLY_SUBSCRIPTION: 'lumina_pro_monthly',
+  ENTITLEMENT_ID: 'pro', // The entitlement identifier in RevenueCat
+};
+
+let isInitialized = false;
+
+/**
+ * Initialize RevenueCat SDK
+ * Call this once when your app starts
+ */
+export const initializeIAP = async (userId?: string): Promise<void> => {
+  if (isInitialized) return;
+  
+  const platform = Capacitor.getPlatform();
+  
+  // Skip on web platform
+  if (platform === 'web') {
+    console.log('IAP: Web platform detected, skipping RevenueCat initialization');
+    return;
+  }
+
+  try {
+    const apiKey = platform === 'ios' ? REVENUECAT_API_KEY_IOS : REVENUECAT_API_KEY_ANDROID;
+    
+    await Purchases.configure({
+      apiKey,
+      appUserID: userId || null, // null for anonymous users
+    });
+    
+    await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
+    
+    isInitialized = true;
+    console.log('IAP: RevenueCat initialized successfully');
+  } catch (error) {
+    console.error('IAP: Failed to initialize RevenueCat:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get available subscription offerings
+ */
+export const getOfferings = async (): Promise<PurchasesOfferings | null> => {
+  if (!isInitialized) {
+    console.warn('IAP: RevenueCat not initialized');
+    return null;
+  }
+
+  try {
+    const offerings = await Purchases.getOfferings();
+    return offerings.offerings;
+  } catch (error) {
+    console.error('IAP: Failed to get offerings:', error);
+    return null;
+  }
+};
+
+/**
+ * Purchase a subscription package
+ */
+export const purchasePackage = async (pkg: PurchasesPackage): Promise<CustomerInfo | null> => {
+  try {
+    const { customerInfo } = await Purchases.purchasePackage({ aPackage: pkg });
+    return customerInfo;
+  } catch (error: any) {
+    if (error.userCancelled) {
+      console.log('IAP: User cancelled purchase');
+      return null;
+    }
+    console.error('IAP: Purchase failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Check if user has active Pro subscription
+ */
+export const checkProStatus = async (): Promise<boolean> => {
+  if (!isInitialized) {
+    return false;
+  }
+
+  try {
+    const { customerInfo } = await Purchases.getCustomerInfo();
+    const entitlement = customerInfo.entitlements.active[PRODUCT_IDS.ENTITLEMENT_ID];
+    return entitlement !== undefined;
+  } catch (error) {
+    console.error('IAP: Failed to check pro status:', error);
+    return false;
+  }
+};
+
+/**
+ * Restore previous purchases
+ */
+export const restorePurchases = async (): Promise<CustomerInfo | null> => {
+  if (!isInitialized) {
+    return null;
+  }
+
+  try {
+    const { customerInfo } = await Purchases.restorePurchases();
+    return customerInfo;
+  } catch (error) {
+    console.error('IAP: Failed to restore purchases:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get customer info (subscription details)
+ */
+export const getCustomerInfo = async (): Promise<CustomerInfo | null> => {
+  if (!isInitialized) {
+    return null;
+  }
+
+  try {
+    const { customerInfo } = await Purchases.getCustomerInfo();
+    return customerInfo;
+  } catch (error) {
+    console.error('IAP: Failed to get customer info:', error);
+    return null;
+  }
+};
+
+/**
+ * Set user ID for attribution (call after user signs in)
+ */
+export const setUserId = async (userId: string): Promise<void> => {
+  if (!isInitialized) return;
+
+  try {
+    await Purchases.logIn({ appUserID: userId });
+    console.log('IAP: User ID set:', userId);
+  } catch (error) {
+    console.error('IAP: Failed to set user ID:', error);
+  }
+};
+
+/**
+ * Log out user (call when user signs out)
+ */
+export const logOutUser = async (): Promise<void> => {
+  if (!isInitialized) return;
+
+  try {
+    await Purchases.logOut();
+    console.log('IAP: User logged out');
+  } catch (error) {
+    console.error('IAP: Failed to log out:', error);
+  }
+};
+

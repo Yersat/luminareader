@@ -26,9 +26,7 @@ const config: CapacitorConfig = {
     // Content inset adjustment behavior
     contentInset: 'automatic',
     // Allow background audio (if needed for future features)
-    allowsLinkPreview: false,
-    // Scheme for the app
-    scheme: 'lumina'
+    allowsLinkPreview: false
   },
 
   // Android-specific configuration

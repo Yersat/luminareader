@@ -24,6 +24,7 @@
     "@capacitor/preferences": "^7.0.2",
     "@capacitor/splash-screen": "^7.0.3",
     "@capacitor/status-bar": "^7.0.3",
+    "@revenuecat/purchases-capacitor": "^11.2.16",
     "epubjs": "^0.3.93",
     "firebase": "^12.6.0",
     "lucide-react": "^0.554.0",

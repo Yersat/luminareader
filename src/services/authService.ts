@@ -154,6 +154,8 @@ export function getCurrentUser(): User | null {
  */
 function handleAuthError(error: AuthError): Error {
   console.error('Auth error:', error);
+  console.error('Auth error code:', error.code);
+  console.error('Auth error message:', error.message);
 
   switch (error.code) {
     case 'auth/email-already-in-use':
@@ -176,8 +178,15 @@ function handleAuthError(error: AuthError): Error {
       return new Error('Too many failed attempts. Please try again later.');
     case 'auth/network-request-failed':
       return new Error('Network error. Please check your internet connection.');
+    case 'auth/unauthorized-domain':
+      return new Error('This domain is not authorized. Please contact support. (unauthorized-domain)');
+    case 'auth/invalid-api-key':
+      return new Error('Invalid API key configuration. Please contact support. (invalid-api-key)');
+    case 'auth/api-key-not-valid':
+      return new Error('API key not valid for this operation. Please contact support. (api-key-not-valid)');
     default:
-      return new Error('Authentication failed. Please try again.');
+      // Include the actual error code for debugging
+      return new Error(`Authentication failed (${error.code || 'unknown'}): ${error.message || 'Please try again.'}`);
   }
 }
 

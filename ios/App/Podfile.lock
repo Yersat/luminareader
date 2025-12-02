@@ -14,6 +14,12 @@ PODS:
   - CapacitorStatusBar (7.0.3):
     - Capacitor
   - IONFilesystemLib (1.0.1)
+  - PurchasesHybridCommon (17.21.0):
+    - RevenueCat (= 5.49.0)
+  - RevenueCat (5.49.0)
+  - RevenuecatPurchasesCapacitor (11.2.16):
+    - Capacitor
+    - PurchasesHybridCommon (= 17.21.0)
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
@@ -23,10 +29,13 @@ DEPENDENCIES:
   - "CapacitorPreferences (from `../../node_modules/@capacitor/preferences`)"
   - "CapacitorSplashScreen (from `../../node_modules/@capacitor/splash-screen`)"
   - "CapacitorStatusBar (from `../../node_modules/@capacitor/status-bar`)"
+  - "RevenuecatPurchasesCapacitor (from `../../node_modules/@revenuecat/purchases-capacitor`)"
 
 SPEC REPOS:
   trunk:
     - IONFilesystemLib
+    - PurchasesHybridCommon
+    - RevenueCat
 
 EXTERNAL SOURCES:
   Capacitor:
@@ -43,6 +52,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/splash-screen"
   CapacitorStatusBar:
     :path: "../../node_modules/@capacitor/status-bar"
+  RevenuecatPurchasesCapacitor:
+    :path: "../../node_modules/@revenuecat/purchases-capacitor"
 
 SPEC CHECKSUMS:
   Capacitor: 358dd1c3fdd71d969547b17e159fd8a7736cb45f
@@ -53,7 +64,10 @@ SPEC CHECKSUMS:
   CapacitorSplashScreen: e388b8e0ed0e982a9d3a40417f478e7a018a8763
   CapacitorStatusBar: 0659ddc7b1713764a05831463d215b177a15d054
   IONFilesystemLib: 89258b8e3e85465da93127d25d7ce37f977e8a6f
+  PurchasesHybridCommon: 988d080cd69d7aa0895e52f993dae53b45a0e929
+  RevenueCat: fa9ad7e1c8817deddb737646946b6b3d8b25f54b
+  RevenuecatPurchasesCapacitor: ea59cd926bda7f3def99ad410f85c09758b7d921
 
-PODFILE CHECKSUM: 341881f8d593c0b9a10e0095fa96f6b6fb72be9b
+PODFILE CHECKSUM: a2776982ce6565684b175c08ade460f92b6ab313
 
 COCOAPODS: 1.16.2

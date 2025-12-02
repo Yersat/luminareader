@@ -17,6 +17,18 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
+// Debug: Log Firebase config (without sensitive data) and environment
+console.log('🔧 Firebase Config:', {
+  authDomain: firebaseConfig.authDomain,
+  projectId: firebaseConfig.projectId,
+  apiKeyPresent: !!firebaseConfig.apiKey,
+  appIdPresent: !!firebaseConfig.appId
+});
+console.log('🔧 Running in:', typeof window !== 'undefined' ? window.location.href : 'unknown');
+console.log('🔧 User Agent:', typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown');
+console.log('🔧 Capacitor platform:', Capacitor.getPlatform());
+console.log('🔧 Is native platform:', Capacitor.isNativePlatform());
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
