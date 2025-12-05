@@ -1,8 +1,8 @@
 
 import { Language } from '../types';
 
-type TranslationKey = 
-  | 'welcome_title' | 'welcome_desc' 
+type TranslationKey =
+  | 'welcome_title' | 'welcome_desc'
   | 'ai_title' | 'ai_desc'
   | 'library_title' | 'library_desc'
   | 'get_started' | 'continue' | 'skip'
@@ -20,7 +20,10 @@ type TranslationKey =
   | 'my_account' | 'member_since' | 'subscription_plan' | 'free'
   | 'basic_features' | 'unlimited_uploads' | 'reading_customization'
   | 'ai_coreading' | 'pro' | 'unlock_power' | 'active' | 'processing' | 'sign_out'
-  | 'recommended' | 'language';
+  | 'recommended' | 'language'
+  | 'delete_account' | 'delete_account_title' | 'delete_account_warning'
+  | 'delete_account_confirm' | 'delete_account_cancel' | 'deleting_account'
+  | 'type_delete_to_confirm' | 'delete_confirmation_word';
 
 export const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -89,7 +92,15 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     processing: "Processing...",
     sign_out: "Sign Out",
     recommended: "RECOMMENDED",
-    language: "Language"
+    language: "Language",
+    delete_account: "Delete Account",
+    delete_account_title: "Delete Your Account?",
+    delete_account_warning: "This action is permanent and cannot be undone. All your data, including your books, bookmarks, and reading progress, will be permanently deleted.",
+    delete_account_confirm: "Delete My Account",
+    delete_account_cancel: "Cancel",
+    deleting_account: "Deleting account...",
+    type_delete_to_confirm: "Type DELETE to confirm",
+    delete_confirmation_word: "DELETE"
   },
   es: {
     welcome_title: "Bienvenido a Lumina",
@@ -157,7 +168,15 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     processing: "Procesando...",
     sign_out: "Cerrar Sesión",
     recommended: "RECOMENDADO",
-    language: "Idioma"
+    language: "Idioma",
+    delete_account: "Eliminar Cuenta",
+    delete_account_title: "¿Eliminar tu cuenta?",
+    delete_account_warning: "Esta acción es permanente y no se puede deshacer. Todos tus datos, incluyendo tus libros, marcadores y progreso de lectura, serán eliminados permanentemente.",
+    delete_account_confirm: "Eliminar Mi Cuenta",
+    delete_account_cancel: "Cancelar",
+    deleting_account: "Eliminando cuenta...",
+    type_delete_to_confirm: "Escribe ELIMINAR para confirmar",
+    delete_confirmation_word: "ELIMINAR"
   },
   fr: {
     welcome_title: "Bienvenue sur Lumina",
@@ -225,7 +244,15 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     processing: "Traitement...",
     sign_out: "Déconnexion",
     recommended: "RECOMMANDÉ",
-    language: "Langue"
+    language: "Langue",
+    delete_account: "Supprimer le compte",
+    delete_account_title: "Supprimer votre compte ?",
+    delete_account_warning: "Cette action est permanente et irréversible. Toutes vos données, y compris vos livres, marque-pages et votre progression de lecture, seront supprimées définitivement.",
+    delete_account_confirm: "Supprimer mon compte",
+    delete_account_cancel: "Annuler",
+    deleting_account: "Suppression du compte...",
+    type_delete_to_confirm: "Tapez SUPPRIMER pour confirmer",
+    delete_confirmation_word: "SUPPRIMER"
   },
   de: {
     welcome_title: "Willkommen bei Lumina",
@@ -293,7 +320,15 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     processing: "Verarbeitung...",
     sign_out: "Abmelden",
     recommended: "EMPFOHLEN",
-    language: "Sprache"
+    language: "Sprache",
+    delete_account: "Konto löschen",
+    delete_account_title: "Konto löschen?",
+    delete_account_warning: "Diese Aktion ist dauerhaft und kann nicht rückgängig gemacht werden. Alle Ihre Daten, einschließlich Ihrer Bücher, Lesezeichen und Lesefortschritte, werden dauerhaft gelöscht.",
+    delete_account_confirm: "Mein Konto löschen",
+    delete_account_cancel: "Abbrechen",
+    deleting_account: "Konto wird gelöscht...",
+    type_delete_to_confirm: "Geben Sie LÖSCHEN ein zur Bestätigung",
+    delete_confirmation_word: "LÖSCHEN"
   },
   zh: {
     welcome_title: "欢迎来到 Lumina",
@@ -361,7 +396,15 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     processing: "处理中...",
     sign_out: "退出登录",
     recommended: "推荐",
-    language: "语言"
+    language: "语言",
+    delete_account: "删除账户",
+    delete_account_title: "删除您的账户？",
+    delete_account_warning: "此操作是永久性的，无法撤销。您的所有数据，包括书籍、书签和阅读进度，都将被永久删除。",
+    delete_account_confirm: "删除我的账户",
+    delete_account_cancel: "取消",
+    deleting_account: "正在删除账户...",
+    type_delete_to_confirm: '输入"删除"以确认',
+    delete_confirmation_word: "删除"
   },
   ja: {
     welcome_title: "Luminaへようこそ",
@@ -429,7 +472,15 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     processing: "処理中...",
     sign_out: "サインアウト",
     recommended: "推奨",
-    language: "言語"
+    language: "言語",
+    delete_account: "アカウントを削除",
+    delete_account_title: "アカウントを削除しますか？",
+    delete_account_warning: "この操作は永久的で元に戻すことはできません。書籍、ブックマーク、読書の進捗を含むすべてのデータが完全に削除されます。",
+    delete_account_confirm: "アカウントを削除",
+    delete_account_cancel: "キャンセル",
+    deleting_account: "アカウントを削除中...",
+    type_delete_to_confirm: '確認のため「削除」と入力してください',
+    delete_confirmation_word: "削除"
   },
   ru: {
     welcome_title: "Добро пожаловать в Lumina",
@@ -497,6 +548,14 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     processing: "Обработка...",
     sign_out: "Выйти",
     recommended: "РЕКОМЕНДУЕМ",
-    language: "Язык"
+    language: "Язык",
+    delete_account: "Удалить аккаунт",
+    delete_account_title: "Удалить аккаунт?",
+    delete_account_warning: "Это действие необратимо. Все ваши данные, включая книги, закладки и прогресс чтения, будут удалены навсегда.",
+    delete_account_confirm: "Удалить мой аккаунт",
+    delete_account_cancel: "Отмена",
+    deleting_account: "Удаление аккаунта...",
+    type_delete_to_confirm: "Введите УДАЛИТЬ для подтверждения",
+    delete_confirmation_word: "УДАЛИТЬ"
   }
 };

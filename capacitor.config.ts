@@ -52,6 +52,15 @@ const config: CapacitorConfig = {
     StatusBar: {
       style: 'dark',
       backgroundColor: '#1A1625'
+    },
+    // Google Auth plugin configuration
+    GoogleAuth: {
+      scopes: ['profile', 'email'],
+      // iOS Client ID from GoogleService-Info.plist
+      iosClientId: '764556944016-l2784l520uscs1b7td0ph70spvfnh7mf.apps.googleusercontent.com',
+      // Server Client ID for offline access and refresh tokens
+      serverClientId: '764556944016-l2784l520uscs1b7td0ph70spvfnh7mf.apps.googleusercontent.com',
+      forceCodeForRefreshToken: true
     }
   }
 };

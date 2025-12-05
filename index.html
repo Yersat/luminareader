@@ -4,7 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Lumina Reader - AI Enhanced EPUB Reader</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <!-- Only load Telegram SDK when running inside Telegram WebApp -->
+    <script>
+      (function() {
+        // Check if we're running inside Telegram by looking for tgWebAppData in URL
+        var isTelegram = window.location.hash.includes('tgWebAppData') ||
+                         window.location.search.includes('tgWebAppData') ||
+                         (window.Telegram && window.Telegram.WebApp);
+        // Don't load Telegram SDK on native apps (capacitor://) or when not in Telegram
+        var isNativeApp = window.location.protocol === 'capacitor:';
+
+        if (isTelegram && !isNativeApp) {
+          var script = document.createElement('script');
+          script.src = 'https://telegram.org/js/telegram-web-app.js';
+          document.head.appendChild(script);
+        }
+      })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       /* Custom scrollbar for webkit */

@@ -146,3 +146,111 @@ function getSystemInstruction(language: string): string {
   return instructions[language] || instructions.en;
 }
 
+/**
+ * Delete User Account
+ *
+ * This function handles complete deletion of a user's account and all associated data:
+ * - All books from Firestore
+ * - All bookmarks from Firestore
+ * - All subscriptions from Firestore
+ * - All EPUB files from Cloud Storage
+ * - User profile from Firestore
+ *
+ * Note: The Firebase Auth account deletion is handled client-side after this function completes
+ */
+export const deleteUserAccount = functions.https.onCall(async (data, context) => {
+  // Verify user is authenticated
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'User must be authenticated to delete account'
+    );
+  }
+
+  const uid = context.auth.uid;
+  functions.logger.info('Starting account deletion for user:', uid);
+
+  try {
+    const db = admin.firestore();
+    const storage = admin.storage().bucket();
+
+    // 1. Delete all user's books and their Storage files
+    functions.logger.info('Deleting books...');
+    const booksSnapshot = await db.collection('books').where('userId', '==', uid).get();
+
+    for (const bookDoc of booksSnapshot.docs) {
+      const bookData = bookDoc.data();
+
+      // Delete the EPUB file from Storage if it exists
+      if (bookData.fileUrl) {
+        try {
+          // Extract storage path from download URL
+          const urlPath = new URL(bookData.fileUrl).pathname;
+          const storagePath = decodeURIComponent(urlPath.split('/o/')[1]?.split('?')[0] || '');
+
+          if (storagePath) {
+            await storage.file(storagePath).delete();
+            functions.logger.info('Deleted storage file:', storagePath);
+          }
+        } catch (storageError) {
+          // Log but continue - file might already be deleted or inaccessible
+          functions.logger.warn('Could not delete storage file:', storageError);
+        }
+      }
+
+      // Delete the book document
+      await bookDoc.ref.delete();
+    }
+    functions.logger.info(`Deleted ${booksSnapshot.size} books`);
+
+    // 2. Delete all user's bookmarks
+    functions.logger.info('Deleting bookmarks...');
+    const bookmarksSnapshot = await db.collection('bookmarks').where('userId', '==', uid).get();
+
+    const batch = db.batch();
+    bookmarksSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+    functions.logger.info(`Deleted ${bookmarksSnapshot.size} bookmarks`);
+
+    // 3. Delete all user's subscriptions
+    functions.logger.info('Deleting subscriptions...');
+    const subscriptionsSnapshot = await db.collection('subscriptions').where('userId', '==', uid).get();
+
+    const subscriptionBatch = db.batch();
+    subscriptionsSnapshot.docs.forEach(doc => {
+      subscriptionBatch.delete(doc.ref);
+    });
+    await subscriptionBatch.commit();
+    functions.logger.info(`Deleted ${subscriptionsSnapshot.size} subscriptions`);
+
+    // 4. Delete any remaining files in the user's Storage folder
+    functions.logger.info('Cleaning up Storage folder...');
+    try {
+      const [files] = await storage.getFiles({ prefix: `epubs/${uid}/` });
+      for (const file of files) {
+        await file.delete();
+        functions.logger.info('Deleted orphaned file:', file.name);
+      }
+    } catch (storageError) {
+      functions.logger.warn('Error cleaning Storage folder:', storageError);
+    }
+
+    // 5. Delete the user profile document
+    functions.logger.info('Deleting user profile...');
+    await db.collection('users').doc(uid).delete();
+
+    functions.logger.info('Account deletion completed successfully for user:', uid);
+
+    return { success: true, message: 'Account data deleted successfully' };
+
+  } catch (error: any) {
+    functions.logger.error('Error deleting account:', error);
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to delete account data: ' + (error.message || 'Unknown error')
+    );
+  }
+});
+

@@ -1,12 +1,12 @@
 import React from 'react';
-import { 
-  BookOpen, 
-  MessageSquare, 
-  X, 
-  Send, 
-  Upload, 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  BookOpen,
+  MessageSquare,
+  X,
+  Send,
+  Upload,
+  ChevronLeft,
+  ChevronRight,
   Sparkles,
   Menu,
   Type,
@@ -31,7 +31,9 @@ import {
   CreditCard,
   Crown,
   Star,
-  Globe
+  Globe,
+  AlertTriangle,
+  Trash
 } from 'lucide-react';
 
 // Custom SVG Components for Brands
@@ -84,5 +86,7 @@ export const Icons = {
   CreditCard: CreditCard,
   Crown: Crown,
   Star: Star,
-  Globe: Globe
+  Globe: Globe,
+  AlertTriangle: AlertTriangle,
+  Trash: Trash
 };

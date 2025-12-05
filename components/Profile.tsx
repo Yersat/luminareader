@@ -8,10 +8,15 @@ interface ProfileProps {
     onBack: () => void;
     onUpgrade: () => void;
     onSignOut: () => void;
+    onDeleteAccount: () => Promise<void>;
 }
 
-export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSignOut }) => {
+export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSignOut, onDeleteAccount }) => {
     const [isUpgrading, setIsUpgrading] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteConfirmText, setDeleteConfirmText] = useState('');
+    const [deleteError, setDeleteError] = useState<string | null>(null);
     const { t, language, setLanguage } = useLanguage();
 
     const handleUpgradeClick = async () => {
@@ -22,10 +27,42 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
         setIsUpgrading(false);
     };
 
+    const handleDeleteAccount = async () => {
+        // Verify confirmation text matches
+        if (deleteConfirmText !== t('delete_confirmation_word')) {
+            setDeleteError('Please type the confirmation word correctly');
+            return;
+        }
+
+        setIsDeleting(true);
+        setDeleteError(null);
+
+        try {
+            await onDeleteAccount();
+            // After successful deletion, the app will redirect to auth screen
+        } catch (error: any) {
+            console.error('Delete account error:', error);
+            setDeleteError(error.message || 'Failed to delete account. Please try again.');
+            setIsDeleting(false);
+        }
+    };
+
+    const openDeleteConfirmation = () => {
+        setShowDeleteConfirm(true);
+        setDeleteConfirmText('');
+        setDeleteError(null);
+    };
+
+    const closeDeleteConfirmation = () => {
+        setShowDeleteConfirm(false);
+        setDeleteConfirmText('');
+        setDeleteError(null);
+    };
+
     return (
-        <div className="min-h-screen bg-stone-50 flex flex-col">
+        <div className="h-screen bg-stone-50 flex flex-col overflow-hidden">
             {/* Header */}
-            <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4 sticky top-0 z-10">
+            <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4 flex-shrink-0">
                 <button 
                     onClick={onBack}
                     className="p-2 -ml-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors"
@@ -35,7 +72,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
                 <h1 className="text-xl font-bold text-gray-900">{t('my_account')}</h1>
             </header>
 
-            <main className="flex-1 max-w-3xl w-full mx-auto p-6 space-y-6">
+            <main className="flex-1 max-w-3xl w-full mx-auto p-6 space-y-6 overflow-y-auto">
                 
                 {/* User Info Card */}
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center gap-6">
@@ -160,17 +197,103 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
 
                 {/* Actions */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <button 
+                    <button
                         onClick={onSignOut}
-                        className="w-full text-left p-4 hover:bg-red-50 text-red-600 flex items-center gap-3 transition-colors"
+                        className="w-full text-left p-4 hover:bg-red-50 text-red-600 flex items-center gap-3 transition-colors border-b border-gray-100"
                     >
                         <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
                             <Icons.LogOut size={16} />
                         </div>
                         <span className="font-medium">{t('sign_out')}</span>
                     </button>
+
+                    {/* Delete Account Button */}
+                    <button
+                        onClick={openDeleteConfirmation}
+                        className="w-full text-left p-4 hover:bg-red-50 text-red-700 flex items-center gap-3 transition-colors"
+                    >
+                        <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                            <Icons.Trash size={16} />
+                        </div>
+                        <div className="flex-1">
+                            <span className="font-medium">{t('delete_account')}</span>
+                            <p className="text-xs text-red-400 mt-0.5">Permanently delete your account and all data</p>
+                        </div>
+                    </button>
                 </div>
             </main>
+
+            {/* Delete Account Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl max-w-md w-full shadow-xl overflow-hidden">
+                        {/* Modal Header */}
+                        <div className="bg-red-50 p-6 flex flex-col items-center text-center border-b border-red-100">
+                            <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                                <Icons.AlertTriangle size={32} className="text-red-600" />
+                            </div>
+                            <h3 className="text-xl font-bold text-red-800">{t('delete_account_title')}</h3>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-6">
+                            <p className="text-gray-600 text-sm mb-6">
+                                {t('delete_account_warning')}
+                            </p>
+
+                            {/* Confirmation Input */}
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    {t('type_delete_to_confirm')}
+                                </label>
+                                <input
+                                    type="text"
+                                    value={deleteConfirmText}
+                                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                                    placeholder={t('delete_confirmation_word')}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none transition-all"
+                                    disabled={isDeleting}
+                                />
+                            </div>
+
+                            {/* Error Message */}
+                            {deleteError && (
+                                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                                    {deleteError}
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={closeDeleteConfirmation}
+                                    disabled={isDeleting}
+                                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                >
+                                    {t('delete_account_cancel')}
+                                </button>
+                                <button
+                                    onClick={handleDeleteAccount}
+                                    disabled={isDeleting || deleteConfirmText !== t('delete_confirmation_word')}
+                                    className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {isDeleting ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            {t('deleting_account')}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Icons.Trash size={16} />
+                                            {t('delete_account_confirm')}
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

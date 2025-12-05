@@ -24,7 +24,7 @@ function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const { t } = useLanguage();
-  const { user: authUser, logOut: authLogOut } = useAuth();
+  const { user: authUser, logOut: authLogOut, deleteAccount: authDeleteAccount } = useAuth();
   
   // Reader Settings
   const [fontSize, setFontSize] = useState(100);
@@ -398,11 +398,12 @@ function App() {
 
   if (view === 'profile' && user) {
       return (
-          <Profile 
-            user={user} 
-            onBack={() => setView('library')} 
+          <Profile
+            user={user}
+            onBack={() => setView('library')}
             onUpgrade={handleUpgrade}
             onSignOut={handleSignOut}
+            onDeleteAccount={authDeleteAccount}
           />
       );
   }

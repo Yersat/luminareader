@@ -16,7 +16,7 @@ export const Auth: React.FC<AuthProps> = ({ onComplete }) => {
   const [error, setError] = useState<string | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { t } = useLanguage();
-  const { signUp, signIn, resetPassword } = useAuth();
+  const { signUp, signIn, signInWithGoogle, signInWithApple, resetPassword } = useAuth();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -80,8 +80,32 @@ export const Auth: React.FC<AuthProps> = ({ onComplete }) => {
   };
 
   const handleSocialLogin = async (provider: 'Google' | 'Apple') => {
-    setError('Social login will be available in a future update.');
-    // TODO: Implement Google/Apple OAuth in Phase 4
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      let firebaseUser;
+      if (provider === 'Google') {
+        firebaseUser = await signInWithGoogle();
+      } else {
+        firebaseUser = await signInWithApple();
+      }
+
+      // Fetch user profile from Firestore (created during OAuth sign-in)
+      const firestoreProfile = await userService.getProfile(firebaseUser.uid);
+
+      const user: UserProfile = {
+        name: firestoreProfile?.displayName || firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+        email: firebaseUser.email || '',
+        isPro: firestoreProfile?.isPro || false,
+        joinDate: firestoreProfile?.joinDate?.toMillis?.() || Date.now()
+      };
+      onComplete(user);
+    } catch (err: any) {
+      console.error(`${provider} sign-in error:`, err);
+      setError(err.message || `${provider} sign-in failed. Please try again.`);
+      setIsLoading(false);
+    }
   };
 
   // Forgot Password View
@@ -157,56 +181,56 @@ export const Auth: React.FC<AuthProps> = ({ onComplete }) => {
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-stone-50 flex flex-col items-center p-6 relative overflow-y-auto">
         {/* Decorative Background Elements */}
         <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-indigo-100/50 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] bg-purple-100/50 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="w-full max-w-md z-10">
-            <div className="text-center mb-8">
-                <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 mx-auto mb-4 transform -rotate-3">
-                    <Icons.Book className="text-white" size={32} />
+        <div className="w-full max-w-md z-10 py-8">
+            <div className="text-center mb-6">
+                <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 mx-auto mb-3 transform -rotate-3">
+                    <Icons.Book className="text-white" size={28} />
                 </div>
-                <h2 className="text-3xl font-bold font-serif text-gray-800">
+                <h2 className="text-2xl font-bold font-serif text-gray-800">
                     {isSignUp ? t('create_account') : t('welcome_back')}
                 </h2>
-                <p className="text-gray-500 mt-2">
+                <p className="text-gray-500 mt-1 text-sm">
                     {isSignUp ? t('join_msg') : t('signin_msg')}
                 </p>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-xl p-8 border border-white/50 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl shadow-xl p-6 border border-white/50 backdrop-blur-sm">
 
                 {/* Error Message */}
                 {error && (
-                  <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                  <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
                     {error}
                   </div>
                 )}
-                
+
                 {/* Social Login Buttons */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                    <button 
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                    <button
                         type="button"
                         onClick={() => handleSocialLogin('Google')}
                         disabled={isLoading}
-                        className="flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
-                        <Icons.Google size={20} />
+                        <Icons.Google size={18} />
                         <span className="text-sm font-semibold text-gray-700">Google</span>
                     </button>
-                    <button 
+                    <button
                         type="button"
                         onClick={() => handleSocialLogin('Apple')}
                         disabled={isLoading}
-                        className="flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 py-2.5 px-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
-                        <Icons.Apple size={20} className="text-black" />
+                        <Icons.Apple size={18} className="text-black" />
                         <span className="text-sm font-semibold text-gray-700">Apple</span>
                     </button>
                 </div>
 
-                <div className="relative mb-6">
+                <div className="relative mb-4">
                     <div className="absolute inset-0 flex items-center">
                         <div className="w-full border-t border-gray-200"></div>
                     </div>
@@ -215,7 +239,7 @@ export const Auth: React.FC<AuthProps> = ({ onComplete }) => {
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} className="space-y-4">
                     
                     {isSignUp && (
                         <div className="space-y-1">
@@ -283,26 +307,26 @@ export const Auth: React.FC<AuthProps> = ({ onComplete }) => {
                         </div>
                     </div>
 
-                    <button 
+                    <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold text-lg shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4"
+                        className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-base shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-3"
                     >
                         {isLoading ? (
-                            <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         ) : (
                             <>
                                 {isSignUp ? t('create_account') : t('sign_in')}
-                                <Icons.ArrowRight size={20} />
+                                <Icons.ArrowRight size={18} />
                             </>
                         )}
                     </button>
                 </form>
 
-                <div className="mt-8 text-center">
+                <div className="mt-5 text-center pb-2">
                     <p className="text-gray-500 text-sm">
                         {isSignUp ? t('already_have') : t('dont_have')}
-                        <button 
+                        <button
                             onClick={() => setIsSignUp(!isSignUp)}
                             className="ml-1 text-indigo-600 font-semibold hover:text-indigo-800 transition-colors"
                         >

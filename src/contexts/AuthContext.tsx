@@ -12,6 +12,9 @@ import {
   signIn as authSignIn,
   logOut as authLogOut,
   resetPassword as authResetPassword,
+  deleteAccount as authDeleteAccount,
+  signInWithGoogle as authSignInWithGoogle,
+  signInWithApple as authSignInWithApple,
   getUserProfile,
   onAuthStateChange,
   UserProfile
@@ -26,8 +29,11 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string, displayName: string) => Promise<User>;
   signIn: (email: string, password: string) => Promise<User>;
+  signInWithGoogle: () => Promise<User>;
+  signInWithApple: () => Promise<User>;
   logOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 /**
@@ -101,6 +107,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   /**
+   * Sign in with Google OAuth
+   */
+  const signInWithGoogle = async (): Promise<User> => {
+    setLoading(true);
+    try {
+      const user = await authSignInWithGoogle();
+      // User state will be updated by onAuthStateChange
+      return user;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Sign in with Apple OAuth
+   */
+  const signInWithApple = async (): Promise<User> => {
+    setLoading(true);
+    try {
+      const user = await authSignInWithApple();
+      // User state will be updated by onAuthStateChange
+      return user;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
    * Sign out the current user
    */
   const logOut = async () => {
@@ -120,14 +154,30 @@ export function AuthProvider({ children }: AuthProviderProps) {
     await authResetPassword(email);
   };
 
+  /**
+   * Delete user account and all associated data
+   */
+  const deleteAccount = async () => {
+    setLoading(true);
+    try {
+      await authDeleteAccount();
+      // User state will be updated by onAuthStateChange after deletion
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     userProfile,
     loading,
     signUp,
     signIn,
+    signInWithGoogle,
+    signInWithApple,
     logOut,
-    resetPassword
+    resetPassword,
+    deleteAccount
   };
 
   return (
