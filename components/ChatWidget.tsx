@@ -10,10 +10,16 @@ interface ChatWidgetProps {
   onClearSelection: () => void;
   isPro: boolean;
   onUpgrade: () => void;
+  onOpenChange?: (isOpen: boolean) => void; // Callback when chat open state changes
 }
 
-export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelection, isPro, onUpgrade }) => {
+export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelection, isPro, onUpgrade, onOpenChange }) => {
   const [isOpen, setIsOpen] = useState(false);
+
+  // Notify parent when isOpen changes
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
   const { t, language } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');

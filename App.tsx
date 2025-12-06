@@ -29,13 +29,14 @@ function App() {
   // Reader Settings
   const [fontSize, setFontSize] = useState(100);
   const [theme, setTheme] = useState<Theme>('light');
-  
+
   // Reader State
   const [bookmarks, setBookmarks] = useState<Record<string, Bookmark[]>>({});
   const [currentCfi, setCurrentCfi] = useState<string>('');
   const [targetLocation, setTargetLocation] = useState<string | null>(null);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false); // Track chat widget open state
 
   // Load user data from Firebase when authenticated
   useEffect(() => {
@@ -656,14 +657,15 @@ function App() {
         {/* Main Content Area */}
         <main className="flex-1 relative overflow-hidden">
           {/* We use a key here to force re-render when book changes to ensure clean epubjs state */}
-          <Reader 
-            key={activeBook.id} 
-            file={activeBook.file} 
-            onTextSelected={handleTextSelected} 
+          <Reader
+            key={activeBook.id}
+            file={activeBook.file}
+            onTextSelected={handleTextSelected}
             fontSize={fontSize}
             theme={theme}
             location={targetLocation}
             onLocationChange={handleLocationChange}
+            isChatOpen={isChatOpen}
           />
 
           {/* Bookmarks & Menu Sidebar/Drawer */}
@@ -717,11 +719,12 @@ function App() {
         </main>
 
         {/* AI Chat Overlay */}
-        <ChatWidget 
-            selection={selection} 
-            onClearSelection={clearSelection} 
+        <ChatWidget
+            selection={selection}
+            onClearSelection={clearSelection}
             isPro={user?.isPro || false}
             onUpgrade={navigateToProfile}
+            onOpenChange={setIsChatOpen}
         />
       </div>
     );

@@ -14,14 +14,15 @@ interface ReaderProps {
   theme: 'light' | 'sepia' | 'dark';
   location?: string | null;
   onLocationChange?: (cfi: string) => void;
+  isChatOpen?: boolean; // Hide navigation when chat is open
 }
 
-export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, theme, location, onLocationChange }) => {
+export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, theme, location, onLocationChange, isChatOpen = false }) => {
   const viewerRef = useRef<HTMLDivElement>(null);
   const bookRef = useRef<Book | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const { t } = useLanguage();
-  
+
   const [isReady, setIsReady] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<string>('');
   const [toc, setToc] = useState<any[]>([]);
@@ -30,6 +31,19 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
   const [totalPages, setTotalPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [isLocationsReady, setIsLocationsReady] = useState(false);
+
+  // Page indicator visibility state (auto-hide after 2 seconds)
+  const [showPageIndicator, setShowPageIndicator] = useState(true);
+  const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Ref to track isChatOpen state inside event handlers
+  const isChatOpenRef = useRef(isChatOpen);
+  useEffect(() => {
+    isChatOpenRef.current = isChatOpen;
+  }, [isChatOpen]);
+
+  // Ref to call showIndicatorTemporarily from event handlers
+  const showIndicatorRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!viewerRef.current || !file) return;
@@ -51,6 +65,8 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
       flow: 'paginated',
       manager: 'default',
       spread: 'none', // Force single page view for consistent full-width rendering
+      allowScriptedContent: true, // Required for text selection events on iOS
+      allowPopups: true, // Allow selection popups on iOS
     });
     renditionRef.current = rendition;
 
@@ -76,7 +92,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
     // This is more reliable than themes.default() for complex CSS
     rendition.hooks.content.register((contents: any) => {
       // Inject CSS for responsive layout
-      // Bottom padding is 80px to avoid text being hidden behind navigation controls
+      // Bottom padding reduced since we use tap navigation now (just small margin for page indicator)
       const css = `
         html, body {
           width: 100% !important;
@@ -87,7 +103,13 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
           box-sizing: border-box !important;
         }
         body {
-          padding: 20px 5% 80px 5% !important;
+          padding: 20px 5% 50px 5% !important;
+          /* Enable text selection on iOS */
+          -webkit-user-select: text !important;
+          -moz-user-select: text !important;
+          -ms-user-select: text !important;
+          user-select: text !important;
+          -webkit-touch-callout: default !important;
         }
         /* Force images to scale properly */
         img {
@@ -111,7 +133,14 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         div, section, article {
           max-width: 100% !important;
         }
-        /* Text selection */
+        /* Enable text selection on all text elements */
+        p, span, div, h1, h2, h3, h4, h5, h6, a, li, td, th, blockquote {
+          -webkit-user-select: text !important;
+          -moz-user-select: text !important;
+          -ms-user-select: text !important;
+          user-select: text !important;
+        }
+        /* Text selection styling */
         ::selection { background: #3b82f6; color: #fff; }
         ::-moz-selection { background: #3b82f6; color: #fff; }
       `;
@@ -169,10 +198,33 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         rendition.annotations.add('highlight', cfiRange, {}, null, 'hl');
     });
     
-    // Clear selection when clicking elsewhere
-    rendition.on('click', () => {
-         // This is tricky in epubjs, sometimes click clears selection, sometimes not.
-         // We'll rely on the user manually clearing or selecting new text.
+    // Handle tap navigation inside the epub iframe (like iBooks)
+    // This allows text selection to work naturally while still enabling tap navigation
+    rendition.on('click', (e: MouseEvent) => {
+      // Don't navigate if chat is open
+      if (isChatOpenRef.current) return;
+
+      // Don't navigate if there's a text selection active (inside the iframe)
+      const iframeDoc = (e.target as HTMLElement)?.ownerDocument;
+      const selection = iframeDoc?.getSelection();
+      if (selection && selection.toString().trim().length > 0) {
+        return; // User is selecting text, don't navigate
+      }
+
+      // Get tap position relative to viewport
+      const viewportWidth = window.innerWidth;
+      const tapX = e.clientX;
+      const tapPercent = tapX / viewportWidth;
+
+      // Left 35% = previous page, Right 35% = next page
+      if (tapPercent < 0.35) {
+        rendition.prev();
+        showIndicatorRef.current?.();
+      } else if (tapPercent > 0.65) {
+        rendition.next();
+        showIndicatorRef.current?.();
+      }
+      // Center tap does nothing (allows normal interaction with content)
     });
 
     // Load TOC
@@ -249,9 +301,38 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
     }
   }, [location]);
 
-  // Navigation handlers
-  const prevPage = () => renditionRef.current?.prev();
-  const nextPage = () => renditionRef.current?.next();
+  // Navigation handlers with page indicator show/hide
+  const showIndicatorTemporarily = () => {
+    setShowPageIndicator(true);
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+    }
+    hideTimerRef.current = setTimeout(() => {
+      setShowPageIndicator(false);
+    }, 2000); // Hide after 2 seconds
+  };
+
+  // Set the ref so event handlers can call this function
+  showIndicatorRef.current = showIndicatorTemporarily;
+
+  const prevPage = () => {
+    renditionRef.current?.prev();
+    showIndicatorTemporarily();
+  };
+
+  const nextPage = () => {
+    renditionRef.current?.next();
+    showIndicatorTemporarily();
+  };
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+      }
+    };
+  }, []);
 
   // Background Styles based on Theme
   const getContainerStyle = () => {
@@ -264,11 +345,11 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
 
   return (
     <div className={`flex flex-col h-full relative group transition-colors duration-300 ${getContainerStyle()}`}>
-      {/* Reader Area */}
+      {/* Reader Area - tap navigation is handled via epubjs click events */}
       <div className="flex-1 relative overflow-hidden">
         {/* We apply the same background to the viewer container to avoid white flashes */}
         <div ref={viewerRef} className={`h-full w-full ${getContainerStyle()}`} />
-        
+
         {!isReady && (
             <div className={`absolute inset-0 flex items-center justify-center z-10 ${getContainerStyle()}`}>
                 <div className="text-center">
@@ -279,54 +360,35 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         )}
       </div>
 
-      {/* Navigation Controls Overlay - positioned above safe area with proper spacing */}
-      {/* bottom = 16px base + safe-area-inset-bottom (34px on iPhone with home indicator) */}
-      <div
-        className="absolute left-4 right-4 md:left-8 md:right-8 flex items-center justify-center gap-4 md:gap-6 pointer-events-none z-10"
-        style={{
-          bottom: 'calc(16px + env(safe-area-inset-bottom, 20px))',
-        }}
-      >
-         <button
-            onClick={prevPage}
-            className={`pointer-events-auto p-3 md:p-4 backdrop-blur shadow-lg rounded-full transition-all transform hover:scale-110 active:scale-95 border min-w-[48px] min-h-[48px] md:min-w-[56px] md:min-h-[56px] flex items-center justify-center ${
-                theme === 'dark'
-                ? 'bg-gray-800/95 text-gray-200 border-gray-700 hover:bg-indigo-600 hover:text-white'
-                : 'bg-white/95 text-stone-700 border-stone-200 hover:bg-indigo-600 hover:text-white'
-            }`}
-            aria-label="Previous Page"
-         >
-            <Icons.Prev size={24} />
-         </button>
-
-         {/* Page Indicator */}
-         <div className={`pointer-events-auto px-5 py-2.5 md:px-6 md:py-3 backdrop-blur shadow-lg rounded-full text-sm md:text-base font-semibold border min-w-[110px] md:min-w-[140px] text-center select-none flex flex-col items-center leading-tight ${
-             theme === 'dark'
-             ? 'bg-gray-800/95 text-gray-200 border-gray-700'
-             : 'bg-white/95 text-stone-600 border-stone-200'
-         }`}>
-            {isLocationsReady ? (
-                <>
-                    <span className={theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}>{t('page')} {currentPage}</span>
-                    <span className="text-[10px] md:text-xs opacity-60 uppercase tracking-wider">{t('of')} {totalPages}</span>
-                </>
-            ) : (
-                <span className="animate-pulse text-xs md:text-sm">{t('calculating')}</span>
-            )}
-         </div>
-
-         <button
-            onClick={nextPage}
-            className={`pointer-events-auto p-3 md:p-4 backdrop-blur shadow-lg rounded-full transition-all transform hover:scale-110 active:scale-95 border min-w-[48px] min-h-[48px] md:min-w-[56px] md:min-h-[56px] flex items-center justify-center ${
-                theme === 'dark'
-                ? 'bg-gray-800/95 text-gray-200 border-gray-700 hover:bg-indigo-600 hover:text-white'
-                : 'bg-white/95 text-stone-700 border-stone-200 hover:bg-indigo-600 hover:text-white'
-            }`}
-            aria-label="Next Page"
-         >
-            <Icons.Next size={24} />
-         </button>
-      </div>
+      {/* Page Indicator - Auto-hiding, non-intrusive */}
+      {/* Hidden when chat is open to avoid blocking the chat input */}
+      {!isChatOpen && (
+        <div
+          className={`fixed left-1/2 -translate-x-1/2 pointer-events-none z-30 transition-all duration-300 ${
+            showPageIndicator ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          }`}
+          style={{
+            bottom: 'calc(16px + env(safe-area-inset-bottom, 20px))',
+          }}
+        >
+           {/* Page Indicator - compact pill design */}
+           <div className={`px-4 py-2 backdrop-blur-sm shadow-md rounded-full text-sm font-medium border select-none flex items-center gap-1.5 ${
+               theme === 'dark'
+               ? 'bg-gray-800/80 text-gray-300 border-gray-700/50'
+               : 'bg-white/80 text-stone-500 border-stone-200/50'
+           }`}>
+              {isLocationsReady ? (
+                  <>
+                      <span className={theme === 'dark' ? 'text-gray-100' : 'text-gray-700'}>{currentPage}</span>
+                      <span className="opacity-50">/</span>
+                      <span className="opacity-70">{totalPages}</span>
+                  </>
+              ) : (
+                  <span className="animate-pulse text-xs">{t('calculating')}</span>
+              )}
+           </div>
+        </div>
+      )}
     </div>
   );
 };

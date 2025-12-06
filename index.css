@@ -58,9 +58,20 @@ html, body, #root {
   }
 }
 
-/* Prevent text selection issues on iOS */
+/* Prevent tap highlight on UI elements but allow text selection in epub reader */
 * {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Enable text selection inside epub reader iframes */
+.epub-container,
+.epub-view,
+.epub-view iframe {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
 }
 
 /* Safe area insets for iOS devices with notch */
