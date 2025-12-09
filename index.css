@@ -1,3 +1,11 @@
+/* Tailwind CSS v4 */
+@import "tailwindcss";
+
+/* Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Global Styles for Lumina Reader */
 
 /* Ensure the app fills the entire viewport */
@@ -10,35 +18,38 @@ html, body, #root {
 }
 
 /* EPUB.js container styles for responsive layout */
+/* IMPORTANT: Do NOT force height: 100% !important on these elements.
+   epub.js calculates the exact height for proper column pagination.
+   Overriding with 100% causes content to be cut off at the bottom of each page
+   because the iframe renders taller than epub.js's column height calculation. */
 .epub-container {
   position: absolute !important;
   left: 0 !important;
   right: 0 !important;
   top: 0 !important;
-  bottom: 0 !important;
   width: 100% !important;
-  height: 100% !important;
+  /* Let epub.js control the height for proper pagination */
 }
 
-/* Ensure epub.js iframes fill their container on iPad and larger screens */
+/* Ensure epub.js iframes fill their container width on iPad and larger screens */
 .epub-view {
   width: 100% !important;
-  height: 100% !important;
   position: absolute !important;
   left: 0 !important;
   top: 0 !important;
+  /* Let epub.js control the height for proper pagination */
 }
 
 .epub-view iframe {
   width: 100% !important;
-  height: 100% !important;
   border: none !important;
+  /* Let epub.js control the height for proper pagination */
 }
 
 /* Target epub.js internal structure */
 .epub-view > div {
   width: 100% !important;
-  height: 100% !important;
+  /* Let epub.js control the height for proper pagination */
 }
 
 /* iPad-specific optimizations */
