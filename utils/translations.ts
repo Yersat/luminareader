@@ -11,7 +11,7 @@ type TranslationKey =
   | 'already_have' | 'dont_have' | 'or_continue'
   | 'my_library' | 'pro_member' | 'free_plan' | 'add_book' | 'epub_format'
   | 'empty_library' | 'empty_desc'
-  | 'opening' | 'page' | 'of' | 'calculating' | 'back'
+  | 'opening' | 'page' | 'of' | 'calculating' | 'back' | 'pages_left_in_chapter'
   | 'bookmarks' | 'no_bookmarks' | 'font_size' | 'theme'
   | 'light' | 'sepia' | 'dark'
   | 'chat_welcome' | 'placeholder_select' | 'placeholder_ask'
@@ -60,6 +60,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     of: "of",
     calculating: "Calculating...",
     back: "Back",
+    pages_left_in_chapter: "{count} pages left in chapter",
     bookmarks: "Bookmarks",
     no_bookmarks: "No bookmarks yet",
     font_size: "Font Size",
@@ -136,6 +137,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     of: "de",
     calculating: "Calculando...",
     back: "Atrás",
+    pages_left_in_chapter: "{count} páginas restantes en el capítulo",
     bookmarks: "Marcadores",
     no_bookmarks: "Sin marcadores",
     font_size: "Tamaño de fuente",
@@ -212,6 +214,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     of: "sur",
     calculating: "Calcul...",
     back: "Retour",
+    pages_left_in_chapter: "{count} pages restantes dans le chapitre",
     bookmarks: "Marque-pages",
     no_bookmarks: "Aucun marque-page",
     font_size: "Taille de police",
@@ -288,6 +291,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     of: "von",
     calculating: "Berechnen...",
     back: "Zurück",
+    pages_left_in_chapter: "{count} Seiten im Kapitel übrig",
     bookmarks: "Lesezeichen",
     no_bookmarks: "Keine Lesezeichen",
     font_size: "Schriftgröße",
@@ -364,6 +368,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     of: "/",
     calculating: "计算中...",
     back: "返回",
+    pages_left_in_chapter: "本章还剩 {count} 页",
     bookmarks: "书签",
     no_bookmarks: "暂无书签",
     font_size: "字体大小",
@@ -440,6 +445,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     of: "/",
     calculating: "計算中...",
     back: "戻る",
+    pages_left_in_chapter: "この章はあと {count} ページ",
     bookmarks: "ブックマーク",
     no_bookmarks: "ブックマークなし",
     font_size: "文字サイズ",
@@ -516,6 +522,7 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     of: "из",
     calculating: "Вычисление...",
     back: "Назад",
+    pages_left_in_chapter: "Осталось {count} стр. в главе",
     bookmarks: "Закладки",
     no_bookmarks: "Нет закладок",
     font_size: "Размер шрифта",

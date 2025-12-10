@@ -63,7 +63,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
         <div className="h-screen bg-stone-50 flex flex-col overflow-hidden">
             {/* Header */}
             <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4 flex-shrink-0">
-                <button 
+                <button
                     onClick={onBack}
                     className="p-2 -ml-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors"
                 >
@@ -72,7 +72,12 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
                 <h1 className="text-xl font-bold text-gray-900">{t('my_account')}</h1>
             </header>
 
-            <main className="flex-1 max-w-3xl w-full mx-auto p-6 space-y-6 overflow-y-auto">
+            <main
+                className="flex-1 max-w-3xl w-full mx-auto p-6 space-y-6 overflow-y-auto"
+                style={{
+                    paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))'
+                }}
+            >
                 
                 {/* User Info Card */}
                 <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center gap-6">
@@ -199,28 +204,26 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <button
                         onClick={onSignOut}
-                        className="w-full text-left p-4 hover:bg-red-50 text-red-600 flex items-center gap-3 transition-colors border-b border-gray-100"
+                        className="w-full text-left p-4 hover:bg-red-50 text-red-600 flex items-center gap-3 transition-colors"
                     >
                         <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
                             <Icons.LogOut size={16} />
                         </div>
                         <span className="font-medium">{t('sign_out')}</span>
                     </button>
-
-                    {/* Delete Account Button */}
-                    <button
-                        onClick={openDeleteConfirmation}
-                        className="w-full text-left p-4 hover:bg-red-50 text-red-700 flex items-center gap-3 transition-colors"
-                    >
-                        <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
-                            <Icons.Trash size={16} />
-                        </div>
-                        <div className="flex-1">
-                            <span className="font-medium">{t('delete_account')}</span>
-                            <p className="text-xs text-red-400 mt-0.5">Permanently delete your account and all data</p>
-                        </div>
-                    </button>
                 </div>
+
+                {/* Delete Account Button */}
+                <button
+                    onClick={openDeleteConfirmation}
+                    className="w-full p-4 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl flex items-center justify-center gap-3 transition-colors border border-red-200"
+                >
+                    <Icons.Trash size={18} />
+                    <span className="font-medium">{t('delete_account')}</span>
+                </button>
+
+                {/* Extra space at bottom to prevent rubber-band effect hiding the button */}
+                <div className="h-32"></div>
             </main>
 
             {/* Delete Account Confirmation Modal */}
