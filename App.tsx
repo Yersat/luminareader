@@ -11,6 +11,7 @@ import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './src/contexts/AuthContext';
 import { bookService, bookmarkService, storageService, userService } from './src/services/firebaseService';
 import { migrateUserData, isMigrationCompleted } from './src/utils/dataMigration';
+import { initializeIAP, setUserId, checkProStatus, logOutUser } from './services/iapService';
 
 type ViewState = 'onboarding' | 'auth' | 'library' | 'reader' | 'profile';
 type Theme = 'light' | 'sepia' | 'dark';
@@ -52,6 +53,33 @@ function App() {
         console.error('Migration failed:', err);
       });
     }
+  }, [authUser]);
+
+  // Initialize RevenueCat when user authenticates
+  useEffect(() => {
+    const initRevenueCat = async () => {
+      if (authUser) {
+        try {
+          // Initialize RevenueCat SDK
+          await initializeIAP(authUser.uid);
+          // Set user ID for attribution
+          await setUserId(authUser.uid);
+          // Check if user already has Pro status from previous purchase
+          const hasPro = await checkProStatus();
+          if (hasPro && user && !user.isPro) {
+            // User has active subscription but local state doesn't reflect it
+            setUser({ ...user, isPro: true });
+            // Also save to Firestore
+            await userService.saveProfile(authUser.uid, { isPro: true });
+            console.log('Pro status restored from RevenueCat');
+          }
+        } catch (error) {
+          console.error('Failed to initialize RevenueCat:', error);
+        }
+      }
+    };
+
+    initRevenueCat();
   }, [authUser]);
 
   // Load books and bookmarks from Firebase
@@ -275,6 +303,8 @@ function App() {
 
   const handleSignOut = async () => {
     try {
+      // Log out from RevenueCat first
+      await logOutUser();
       await authLogOut();
       setUser(null);
       setLibrary([]);

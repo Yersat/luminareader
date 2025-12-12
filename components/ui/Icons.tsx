@@ -33,7 +33,8 @@ import {
   Star,
   Globe,
   AlertTriangle,
-  Trash
+  Trash,
+  RefreshCw
 } from 'lucide-react';
 
 // Custom SVG Components for Brands
@@ -88,5 +89,6 @@ export const Icons = {
   Star: Star,
   Globe: Globe,
   AlertTriangle: AlertTriangle,
-  Trash: Trash
+  Trash: Trash,
+  RefreshCw: RefreshCw
 };

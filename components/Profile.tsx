@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Icons } from './ui/Icons';
 import { UserProfile } from '../types';
 import { useLanguage, LANGUAGES } from '../contexts/LanguageContext';
+import { purchaseProSubscription, restoreProPurchases, isIAPAvailable } from '../services/iapService';
 
 interface ProfileProps {
     user: UserProfile;
@@ -13,6 +14,8 @@ interface ProfileProps {
 
 export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSignOut, onDeleteAccount }) => {
     const [isUpgrading, setIsUpgrading] = useState(false);
+    const [isRestoring, setIsRestoring] = useState(false);
+    const [purchaseError, setPurchaseError] = useState<string | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -20,11 +23,52 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
     const { t, language, setLanguage } = useLanguage();
 
     const handleUpgradeClick = async () => {
+        setPurchaseError(null);
         setIsUpgrading(true);
-        // Simulate payment processing
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        onUpgrade();
-        setIsUpgrading(false);
+
+        try {
+            const result = await purchaseProSubscription();
+
+            if (result.success && result.isPro) {
+                // Purchase successful - update user status
+                onUpgrade();
+            } else if (result.userCancelled) {
+                // User cancelled - no error message needed
+                console.log('User cancelled purchase');
+            } else if (result.error) {
+                // Show error to user
+                setPurchaseError(result.error);
+            }
+        } catch (error: any) {
+            console.error('Unexpected purchase error:', error);
+            setPurchaseError('An unexpected error occurred. Please try again.');
+        } finally {
+            setIsUpgrading(false);
+        }
+    };
+
+    const handleRestorePurchases = async () => {
+        setPurchaseError(null);
+        setIsRestoring(true);
+
+        try {
+            const result = await restoreProPurchases();
+
+            if (result.success && result.isPro) {
+                // Restoration found an active subscription
+                onUpgrade();
+            } else if (result.success && !result.isPro) {
+                // Restoration successful but no active subscription found
+                setPurchaseError('No active subscription found to restore.');
+            } else if (result.error) {
+                setPurchaseError(result.error);
+            }
+        } catch (error: any) {
+            console.error('Unexpected restore error:', error);
+            setPurchaseError('Failed to restore purchases. Please try again.');
+        } finally {
+            setIsRestoring(false);
+        }
     };
 
     const handleDeleteAccount = async () => {
@@ -179,13 +223,16 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
                             <div className="flex items-end justify-between">
                                 <div className="font-bold text-2xl text-gray-800">$5<span className="text-sm font-normal text-gray-500">/mo</span></div>
                                 {!user.isPro ? (
-                                    <button 
+                                    <button
                                         onClick={handleUpgradeClick}
-                                        disabled={isUpgrading}
+                                        disabled={isUpgrading || isRestoring}
                                         className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-md disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
                                     >
                                         {isUpgrading ? (
-                                            <>{t('processing')}</>
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                                {t('processing')}
+                                            </>
                                         ) : (
                                             <>{t('upgrade_btn').split(' - ')[0]} <Icons.ArrowRight size={16} /></>
                                         )}
@@ -198,6 +245,37 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
                             </div>
                         </div>
                     </div>
+
+                    {/* Purchase Error Message */}
+                    {purchaseError && (
+                        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm flex items-start gap-2">
+                            <Icons.AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                            <span>{purchaseError}</span>
+                        </div>
+                    )}
+
+                    {/* Restore Purchases Button - Required by Apple */}
+                    {!user.isPro && isIAPAvailable() && (
+                        <div className="mt-4 text-center">
+                            <button
+                                onClick={handleRestorePurchases}
+                                disabled={isRestoring || isUpgrading}
+                                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
+                            >
+                                {isRestoring ? (
+                                    <>
+                                        <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                                        Restoring...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Icons.RefreshCw size={14} />
+                                        Restore Purchases
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Actions */}
