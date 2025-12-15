@@ -221,7 +221,19 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
                             </ul>
                             
                             <div className="flex items-end justify-between">
-                                <div className="font-bold text-2xl text-gray-800">$5<span className="text-sm font-normal text-gray-500">/mo</span></div>
+                                <div className="flex flex-col">
+                                    {!user.isPro && (
+                                        <div className="text-sm font-semibold text-green-600 mb-1">
+                                            {t('free_trial_7_days')}
+                                        </div>
+                                    )}
+                                    <div className="font-bold text-2xl text-gray-800">
+                                        $4.99<span className="text-sm font-normal text-gray-500">/mo</span>
+                                    </div>
+                                    {!user.isPro && (
+                                        <div className="text-xs text-gray-400">{t('cancel_anytime')}</div>
+                                    )}
+                                </div>
                                 {!user.isPro ? (
                                     <button
                                         onClick={handleUpgradeClick}
