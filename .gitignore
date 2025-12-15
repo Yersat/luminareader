@@ -101,3 +101,4 @@ firebase-debug.*.log
 # These should be kept out of public repos for security
 ios/App/App/GoogleService-Info.plist
 android/app/google-services.json
+android/key.properties
