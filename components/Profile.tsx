@@ -3,6 +3,12 @@ import { Icons } from './ui/Icons';
 import { UserProfile } from '../types';
 import { useLanguage, LANGUAGES } from '../contexts/LanguageContext';
 import { purchaseProSubscription, restoreProPurchases, isIAPAvailable } from '../services/iapService';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
+
+// Legal URLs - these should be hosted on your website
+const PRIVACY_POLICY_URL = 'https://lumina-reader-a5d10.web.app/privacy-policy.html';
+const TERMS_OF_USE_URL = 'https://lumina-reader-a5d10.web.app/terms-of-use.html';
 
 interface ProfileProps {
     user: UserProfile;
@@ -101,6 +107,14 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
         setShowDeleteConfirm(false);
         setDeleteConfirmText('');
         setDeleteError(null);
+    };
+
+    const openUrl = async (url: string) => {
+        if (Capacitor.isNativePlatform()) {
+            await Browser.open({ url });
+        } else {
+            window.open(url, '_blank');
+        }
     };
 
     return (
@@ -288,6 +302,23 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
                             </button>
                         </div>
                     )}
+
+                    {/* Legal Links - Required by Apple for subscriptions */}
+                    <div className="mt-4 pt-4 border-t border-gray-100 flex justify-center gap-4 text-xs text-gray-500">
+                        <button
+                            onClick={() => openUrl(TERMS_OF_USE_URL)}
+                            className="hover:text-indigo-600 underline transition-colors"
+                        >
+                            {t('terms_of_use')}
+                        </button>
+                        <span>•</span>
+                        <button
+                            onClick={() => openUrl(PRIVACY_POLICY_URL)}
+                            className="hover:text-indigo-600 underline transition-colors"
+                        >
+                            {t('privacy_policy')}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Actions */}

@@ -24,7 +24,8 @@ type TranslationKey =
   | 'free_trial_7_days' | 'cancel_anytime'
   | 'delete_account' | 'delete_account_title' | 'delete_account_warning'
   | 'delete_account_confirm' | 'delete_account_cancel' | 'deleting_account'
-  | 'type_delete_to_confirm' | 'delete_confirmation_word';
+  | 'type_delete_to_confirm' | 'delete_confirmation_word'
+  | 'privacy_policy' | 'terms_of_use';
 
 export const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
@@ -104,7 +105,9 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     delete_account_cancel: "Cancel",
     deleting_account: "Deleting account...",
     type_delete_to_confirm: "Type DELETE to confirm",
-    delete_confirmation_word: "DELETE"
+    delete_confirmation_word: "DELETE",
+    privacy_policy: "Privacy Policy",
+    terms_of_use: "Terms of Use"
   },
   es: {
     welcome_title: "Bienvenido a Lumina",
@@ -183,7 +186,9 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     delete_account_cancel: "Cancelar",
     deleting_account: "Eliminando cuenta...",
     type_delete_to_confirm: "Escribe ELIMINAR para confirmar",
-    delete_confirmation_word: "ELIMINAR"
+    delete_confirmation_word: "ELIMINAR",
+    privacy_policy: "Política de Privacidad",
+    terms_of_use: "Términos de Uso"
   },
   fr: {
     welcome_title: "Bienvenue sur Lumina",
@@ -262,7 +267,9 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     delete_account_cancel: "Annuler",
     deleting_account: "Suppression du compte...",
     type_delete_to_confirm: "Tapez SUPPRIMER pour confirmer",
-    delete_confirmation_word: "SUPPRIMER"
+    delete_confirmation_word: "SUPPRIMER",
+    privacy_policy: "Politique de Confidentialité",
+    terms_of_use: "Conditions d'Utilisation"
   },
   de: {
     welcome_title: "Willkommen bei Lumina",
@@ -341,7 +348,9 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     delete_account_cancel: "Abbrechen",
     deleting_account: "Konto wird gelöscht...",
     type_delete_to_confirm: "Geben Sie LÖSCHEN ein zur Bestätigung",
-    delete_confirmation_word: "LÖSCHEN"
+    delete_confirmation_word: "LÖSCHEN",
+    privacy_policy: "Datenschutzrichtlinie",
+    terms_of_use: "Nutzungsbedingungen"
   },
   zh: {
     welcome_title: "欢迎来到 Lumina",
@@ -420,7 +429,9 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     delete_account_cancel: "取消",
     deleting_account: "正在删除账户...",
     type_delete_to_confirm: '输入"删除"以确认',
-    delete_confirmation_word: "删除"
+    delete_confirmation_word: "删除",
+    privacy_policy: "隐私政策",
+    terms_of_use: "使用条款"
   },
   ja: {
     welcome_title: "Luminaへようこそ",
@@ -499,7 +510,9 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     delete_account_cancel: "キャンセル",
     deleting_account: "アカウントを削除中...",
     type_delete_to_confirm: '確認のため「削除」と入力してください',
-    delete_confirmation_word: "削除"
+    delete_confirmation_word: "削除",
+    privacy_policy: "プライバシーポリシー",
+    terms_of_use: "利用規約"
   },
   ru: {
     welcome_title: "Добро пожаловать в Lumina",
@@ -578,6 +591,8 @@ export const translations: Record<Language, Record<TranslationKey, string>> = {
     delete_account_cancel: "Отмена",
     deleting_account: "Удаление аккаунта...",
     type_delete_to_confirm: "Введите УДАЛИТЬ для подтверждения",
-    delete_confirmation_word: "УДАЛИТЬ"
+    delete_confirmation_word: "УДАЛИТЬ",
+    privacy_policy: "Политика конфиденциальности",
+    terms_of_use: "Условия использования"
   }
 };
