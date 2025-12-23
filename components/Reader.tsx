@@ -352,12 +352,12 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
              epub.js column height calculations to be incorrect. */
           padding: 20px 5% !important;
           box-sizing: border-box !important;
-          /* Enable text selection on iOS */
+          /* Enable text selection on iOS but disable native callout menu */
           -webkit-user-select: text !important;
           -moz-user-select: text !important;
           -ms-user-select: text !important;
           user-select: text !important;
-          -webkit-touch-callout: default !important;
+          -webkit-touch-callout: none !important;
         }
         /* Force images to scale properly */
         img {
@@ -393,6 +393,13 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         ::-moz-selection { background: #3b82f6; color: #fff; }
       `;
       contents.addStylesheetRules(css);
+
+      // Prevent iOS native context menu (Copy, Look Up, Translate, etc.)
+      // This allows our custom text selection handling to work
+      contents.document.addEventListener('contextmenu', (e: Event) => {
+        e.preventDefault();
+        return false;
+      });
     });
 
     // Event Listeners

@@ -74,7 +74,7 @@ html, body, #root {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Enable text selection inside epub reader iframes */
+/* Enable text selection inside epub reader iframes but disable iOS native callout */
 .epub-container,
 .epub-view,
 .epub-view iframe {
@@ -82,7 +82,7 @@ html, body, #root {
   -moz-user-select: text !important;
   -ms-user-select: text !important;
   user-select: text !important;
-  -webkit-touch-callout: default !important;
+  -webkit-touch-callout: none !important;
 }
 
 /* Safe area insets for iOS devices with notch */
