@@ -832,46 +832,23 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
       }
       console.log(`}`);
 
-      // Use epub.js's native next()/prev()
-      console.log(`[NAV ${timestamp}] CALLING: rendition.${direction === 'NEXT' ? 'next' : 'prev'}()`);
-      const navStartTime = Date.now();
+      // Use CSS transform-based pagination (goToNextPage/goToPrevPage)
+      // This moves page-by-page within a section, and only calls rendition.next()/prev()
+      // when at the end/start of a section
+      console.log(`[NAV ${timestamp}] CALLING: ${direction === 'NEXT' ? 'goToNextPage' : 'goToPrevPage'}()`);
+      console.log(`[NAV ${timestamp}] Current section page: ${sectionPageRef.current} of ${sectionTotalPagesRef.current}`);
 
-      const navigationPromise = direction === 'NEXT' ? rendition.next() : rendition.prev();
+      if (direction === 'NEXT') {
+        goToNextPage();
+      } else {
+        goToPrevPage();
+      }
 
-      navigationPromise.then(() => {
-        const navDuration = Date.now() - navStartTime;
-        const completeTimestamp = new Date().toISOString();
-        console.log(`[NAV ${completeTimestamp}] SUCCESS: Navigation ${direction} completed in ${navDuration}ms`);
-
-        // Log rendition state after navigation
-        console.log(`[NAV ${completeTimestamp}] RENDITION_STATE_AFTER: {`);
-        try {
-          const newLoc = rendition.location;
-          console.log(`  location.start.cfi: ${newLoc?.start?.cfi || 'N/A'}`);
-          console.log(`  location.start.location: ${newLoc?.start?.location ?? 'N/A'}`);
-          console.log(`  location.end.location: ${newLoc?.end?.location ?? 'N/A'}`);
-          console.log(`  location.start.displayed: ${JSON.stringify(newLoc?.start?.displayed) || 'N/A'}`);
-        } catch (err) {
-          console.log(`  ERROR getting location: ${err}`);
-        }
-        console.log(`}`);
-
-        console.log(`[NAV ${completeTimestamp}] Setting isNavigating = false`);
+      // Reset navigation flag after a short delay
+      setTimeout(() => {
         isNavigatingRef.current = false;
-        console.log(`[NAV ${completeTimestamp}] ========== TAP EVENT END (SUCCESS) ==========`);
-      }).catch((err: Error) => {
-        const navDuration = Date.now() - navStartTime;
-        const errorTimestamp = new Date().toISOString();
-        console.log(`[NAV ${errorTimestamp}] ERROR: Navigation ${direction} failed after ${navDuration}ms`);
-        console.log(`[NAV ${errorTimestamp}] ERROR_DETAILS: {`);
-        console.log(`  message: ${err.message}`);
-        console.log(`  name: ${err.name}`);
-        console.log(`  stack: ${err.stack}`);
-        console.log(`}`);
-        console.log(`[NAV ${errorTimestamp}] Setting isNavigating = false`);
-        isNavigatingRef.current = false;
-        console.log(`[NAV ${errorTimestamp}] ========== TAP EVENT END (ERROR) ==========`);
-      });
+        console.log(`[NAV] Navigation flag reset`);
+      }, 100);
 
       showIndicatorRef.current?.();
     };
@@ -1187,50 +1164,8 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         )}
       </div>
 
-      {/* Tap Navigation Zones */}
-      {/* Left 40% = Previous page, Middle 20% = Show indicator, Right 40% = Next page */}
-      {!isChatOpen && (
-        <>
-          {/* Left Tap Zone - Previous Page (40% width) */}
-          <div
-            className="fixed left-0 top-0 bottom-0 z-20 cursor-pointer"
-            style={{ width: '40%' }}
-            onClick={() => {
-              const timestamp = new Date().toISOString();
-              console.log(`[TAP_PREV ${timestamp}] ========== TAP LEFT - PREV PAGE ==========`);
-              console.log(`[TAP_PREV ${timestamp}] Current section page: ${sectionPageRef.current} of ${sectionTotalPagesRef.current}`);
-              goToPrevPage();
-              showIndicatorTemporarily();
-            }}
-            aria-label="Previous Page"
-          />
-
-          {/* Center Tap Zone - Show Page Indicator (20% width) */}
-          <div
-            className="fixed top-0 bottom-0 z-20 cursor-pointer"
-            style={{ left: '40%', width: '20%' }}
-            onClick={() => {
-              console.log(`[TAP_CENTER] Showing page indicator`);
-              showIndicatorTemporarily();
-            }}
-            aria-label="Show Page Info"
-          />
-
-          {/* Right Tap Zone - Next Page (40% width) */}
-          <div
-            className="fixed right-0 top-0 bottom-0 z-20 cursor-pointer"
-            style={{ width: '40%' }}
-            onClick={() => {
-              const timestamp = new Date().toISOString();
-              console.log(`[TAP_NEXT ${timestamp}] ========== TAP RIGHT - NEXT PAGE ==========`);
-              console.log(`[TAP_NEXT ${timestamp}] Current section page: ${sectionPageRef.current} of ${sectionTotalPagesRef.current}`);
-              goToNextPage();
-              showIndicatorTemporarily();
-            }}
-            aria-label="Next Page"
-          />
-        </>
-      )}
+      {/* Tap Navigation is handled via rendition.on('click') inside the epub iframe */}
+      {/* This allows text selection to work naturally while still enabling tap navigation */}
 
       {/* Chapter Progress Indicator - Top (like iBooks iPhone) */}
       {/* Shows "X pages left in chapter" */}
