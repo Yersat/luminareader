@@ -773,8 +773,72 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         return;
       }
 
-      // Show navigation controls
-      console.log(`[TAP] Showing navigation controls from epub iframe tap`);
+      // Time-based debounce
+      const now = Date.now();
+      const timeSinceLastNav = now - lastNavigationTimeRef.current;
+      if (timeSinceLastNav < 200) {
+        console.log(`[NAV ${timestamp}] BLOCKED: Debounce - only ${timeSinceLastNav}ms since last navigation`);
+        return;
+      }
+
+      // Prevent overlapping navigations
+      if (isNavigatingRef.current) {
+        console.log(`[NAV ${timestamp}] BLOCKED: Navigation already in progress`);
+        return;
+      }
+
+      // Get tap position
+      const viewportWidth = window.innerWidth;
+      const tapX = e.clientX;
+      const tapPercent = tapX / viewportWidth;
+      console.log(`[NAV ${timestamp}] TAP_POSITION: x=${tapX}, viewportWidth=${viewportWidth}, percent=${(tapPercent * 100).toFixed(1)}%`);
+
+      // Only handle left/right taps (center is no action)
+      if (tapPercent >= 0.35 && tapPercent <= 0.65) {
+        console.log(`[NAV ${timestamp}] BLOCKED: Center tap (35-65%) - no navigation`);
+        return;
+      }
+
+      lastNavigationTimeRef.current = now;
+      const direction = tapPercent < 0.35 ? 'PREV' : 'NEXT';
+
+      console.log(`[NAV ${timestamp}] DIRECTION: ${direction}`);
+      console.log(`[NAV ${timestamp}] Setting isNavigating = true`);
+
+      // Set navigation flag
+      isNavigatingRef.current = true;
+
+      // Log rendition state before navigation
+      console.log(`[NAV ${timestamp}] RENDITION_STATE_BEFORE: {`);
+      try {
+        const currentLoc = rendition.location;
+        console.log(`  location.start.cfi: ${currentLoc?.start?.cfi || 'N/A'}`);
+        console.log(`  location.start.location: ${currentLoc?.start?.location ?? 'N/A'}`);
+        console.log(`  location.end.location: ${currentLoc?.end?.location ?? 'N/A'}`);
+        console.log(`  location.start.displayed: ${JSON.stringify(currentLoc?.start?.displayed) || 'N/A'}`);
+      } catch (err) {
+        console.log(`  ERROR getting location: ${err}`);
+      }
+      console.log(`}`);
+
+      // Use CSS transform-based pagination (goToNextPage/goToPrevPage)
+      // This moves page-by-page within a section, and only calls rendition.next()/prev()
+      // when at the end/start of a section
+      console.log(`[NAV ${timestamp}] CALLING: ${direction === 'NEXT' ? 'goToNextPage' : 'goToPrevPage'}()`);
+      console.log(`[NAV ${timestamp}] Current section page: ${sectionPageRef.current} of ${sectionTotalPagesRef.current}`);
+
+      if (direction === 'NEXT') {
+        goToNextPage();
+      } else {
+        goToPrevPage();
+      }
+
+      // Reset navigation flag after a short delay
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+        console.log(`[NAV] Navigation flag reset`);
+      }, 100);
+
       showIndicatorRef.current?.();
     };
 
@@ -1089,19 +1153,8 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         )}
       </div>
 
-      {/* Tap Zone - Tap anywhere on content to show navigation controls */}
-      {/* This zone only shows the controls, does NOT navigate */}
-      {!isChatOpen && (
-        <div
-          className="absolute inset-0 z-10"
-          style={{ top: '0' }}
-          onClick={() => {
-            console.log(`[TAP] Showing navigation controls`);
-            showIndicatorTemporarily();
-          }}
-          aria-label="Show Navigation Controls"
-        />
-      )}
+      {/* Tap Navigation is handled via rendition.on('click') inside the epub iframe */}
+      {/* This allows text selection to work naturally while still enabling tap navigation */}
 
       {/* Chapter Progress Indicator - Top (like iBooks iPhone) */}
       {/* Shows "X pages left in chapter" */}
