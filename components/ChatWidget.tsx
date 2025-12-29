@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { Keyboard } from '@capacitor/keyboard';
 import { Message, Sender, SelectionData } from '../types';
 import { generateAIResponse } from '../services/grokService';
 import { Icons } from './ui/Icons';
@@ -24,7 +25,9 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Initialize welcome message when component mounts or language changes
   useEffect(() => {
@@ -51,8 +54,43 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
     }
   }, [messages, isOpen]);
 
+  // Keyboard listeners for mobile
+  useEffect(() => {
+    let showListener: any;
+    let hideListener: any;
+
+    const setupKeyboardListeners = async () => {
+      try {
+        showListener = await Keyboard.addListener('keyboardWillShow', (info) => {
+          setKeyboardHeight(info.keyboardHeight);
+        });
+
+        hideListener = await Keyboard.addListener('keyboardWillHide', () => {
+          setKeyboardHeight(0);
+        });
+      } catch (error) {
+        // Keyboard plugin not available (web browser)
+        console.log('Keyboard plugin not available');
+      }
+    };
+
+    setupKeyboardListeners();
+
+    return () => {
+      showListener?.remove();
+      hideListener?.remove();
+    };
+  }, []);
+
   const handleSendMessage = async () => {
     if (!inputValue.trim() || !isPro) return;
+
+    // Dismiss keyboard after sending
+    try {
+      await Keyboard.hide();
+    } catch (error) {
+      // Keyboard plugin not available (web browser)
+    }
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -118,9 +156,13 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
 
       {/* Chat Interface / Drawer */}
       <div
-        className={`fixed inset-y-0 right-0 z-40 w-full sm:w-96 bg-white/95 backdrop-blur-md shadow-2xl transform transition-transform duration-300 ease-in-out border-l border-gray-100 ${
+        className={`fixed inset-x-0 top-0 z-40 w-full sm:w-96 sm:left-auto sm:right-0 bg-white/95 backdrop-blur-md shadow-2xl transform transition-all duration-300 ease-in-out border-l border-gray-100 ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
+        style={{
+          bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0px',
+          transition: 'bottom 0.25s ease-out'
+        }}
       >
         <div className="flex flex-col h-full relative">
           
@@ -229,9 +271,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
           )}
 
           {/* Input Area */}
-          <div className={`p-4 bg-white border-t border-gray-100 ${!isPro ? 'opacity-30 pointer-events-none' : ''}`}>
+          <div className={`p-4 bg-white border-t border-gray-100 safe-area-bottom ${!isPro ? 'opacity-30 pointer-events-none' : ''}`}>
             <div className="flex items-center gap-2 bg-gray-50 rounded-full px-4 py-2 border border-gray-200 focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
               <input
+                ref={inputRef}
                 type="text"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
@@ -243,9 +286,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
               <button
                 onClick={handleSendMessage}
                 disabled={!inputValue.trim() || isLoading || !isPro}
-                className="p-1.5 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="p-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors active:scale-95"
+                aria-label="Send message"
               >
-                <Icons.Send size={16} />
+                <Icons.Send size={18} />
               </button>
             </div>
           </div>

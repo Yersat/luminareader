@@ -352,12 +352,12 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
              epub.js column height calculations to be incorrect. */
           padding: 20px 5% !important;
           box-sizing: border-box !important;
-          /* Enable text selection on iOS but disable native callout menu */
+          /* Enable text selection on iOS */
           -webkit-user-select: text !important;
           -moz-user-select: text !important;
           -ms-user-select: text !important;
           user-select: text !important;
-          -webkit-touch-callout: none !important;
+          -webkit-touch-callout: default !important;
         }
         /* Force images to scale properly */
         img {
@@ -393,13 +393,6 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         ::-moz-selection { background: #3b82f6; color: #fff; }
       `;
       contents.addStylesheetRules(css);
-
-      // Prevent iOS native context menu (Copy, Look Up, Translate, etc.)
-      // This allows our custom text selection handling to work
-      contents.document.addEventListener('contextmenu', (e: Event) => {
-        e.preventDefault();
-        return false;
-      });
     });
 
     // Event Listeners
@@ -745,31 +738,49 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         rendition.annotations.add('highlight', cfiRange, {}, null, 'hl');
     });
     
-    // Handle tap inside the epub iframe - just show navigation controls (no navigation)
-    // Navigation is now done via the visible arrow buttons
+    // Handle tap navigation inside the epub iframe (like iBooks)
+    // Using epub.js's native next()/prev() for reliable page-by-page navigation
     const clickHandler = (e: MouseEvent) => {
+      const timestamp = new Date().toISOString();
+      console.log(`[NAV ${timestamp}] ========== TAP EVENT START ==========`);
       const targetElement = e.target as HTMLElement;
+      console.log(`[NAV ${timestamp}] Event type: ${e.type}, target: ${targetElement?.tagName}`);
 
       // Check if user clicked on a link (anchor tag) - let epub.js handle internal links
       // This is important for TOC pages which have many clickable chapter links
       const clickedLink = targetElement?.closest('a');
       if (clickedLink) {
         const href = clickedLink.getAttribute('href');
-        console.log(`[TAP] Link clicked: ${href} - letting epub.js handle it`);
+        console.log(`[NAV ${timestamp}] LINK_CLICKED: User clicked on a link`);
+        console.log(`[NAV ${timestamp}] LINK_HREF: ${href}`);
+        console.log(`[NAV ${timestamp}] ALLOWING: epub.js will handle internal link navigation`);
+        console.log(`[NAV ${timestamp}] ========== TAP EVENT END (LINK CLICK) ==========`);
+        // Don't prevent default - let epub.js handle the link click
         return;
       }
 
-      // Don't show controls if chat is open
+      // Log current state
+      console.log(`[NAV ${timestamp}] STATE: {`);
+      console.log(`  isChatOpen: ${isChatOpenRef.current}`);
+      console.log(`  isNavigating: ${isNavigatingRef.current}`);
+      console.log(`  lastNavigationTime: ${lastNavigationTimeRef.current}`);
+      console.log(`  currentPage: ${currentStartLocationRef.current}`);
+      console.log(`  rendition exists: ${!!rendition}`);
+      console.log(`  book exists: ${!!book}`);
+      console.log(`}`);
+
+      // Don't navigate if chat is open
       if (isChatOpenRef.current) {
+        console.log(`[NAV ${timestamp}] BLOCKED: Chat is open`);
         return;
       }
 
-      // Don't show controls if there's a text selection active
+      // Don't navigate if there's a text selection active
       const iframeDoc = targetElement?.ownerDocument;
       const selection = iframeDoc?.getSelection();
       const selectionText = selection?.toString().trim() || '';
       if (selectionText.length > 0) {
-        console.log(`[TAP] Text selection active - not showing controls`);
+        console.log(`[NAV ${timestamp}] BLOCKED: Text selection active: "${selectionText.substring(0, 50)}..."`);
         return;
       }
 
@@ -842,7 +853,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
       showIndicatorRef.current?.();
     };
 
-    console.log('[NAV INIT] Registering click handler on rendition (show controls only)');
+    console.log('[NAV INIT] Registering click handler on rendition');
     rendition.on('click', clickHandler);
 
     // Load TOC
@@ -1164,7 +1175,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
             showPageIndicator ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
           }`}
           style={{
-            top: 'calc(76px + env(safe-area-inset-top, 0px))',
+            top: 'calc(12px + env(safe-area-inset-top, 20px))',
           }}
         >
           <div className={`px-3 py-1.5 backdrop-blur-sm rounded-full text-xs font-medium select-none ${
@@ -1177,72 +1188,31 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         </div>
       )}
 
-      {/* Navigation Controls - Bottom Bar with Arrows */}
-      {/* Shows prev/next buttons and page indicator, auto-hides after 2 seconds */}
+      {/* Page Indicator - Bottom Center */}
+      {/* Shows current page / total pages, auto-hides after tap */}
       {!isChatOpen && (
         <div
-          className={`fixed left-4 right-4 md:left-8 md:right-8 flex items-center justify-center gap-4 md:gap-6 z-30 transition-all duration-300 ${
-            showPageIndicator
-              ? 'opacity-100 translate-y-0'
-              : 'opacity-0 translate-y-4 pointer-events-none'
+          className={`fixed left-1/2 -translate-x-1/2 pointer-events-none z-30 transition-all duration-300 ${
+            showPageIndicator ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}
           style={{
             bottom: 'calc(16px + env(safe-area-inset-bottom, 20px))',
           }}
         >
-          {/* Previous Page Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              const timestamp = new Date().toISOString();
-              console.log(`[NAV_BTN ${timestamp}] Previous button clicked`);
-              goToPrevPage();
-              showIndicatorTemporarily();
-            }}
-            className={`p-3 md:p-4 backdrop-blur shadow-lg rounded-full transition-all transform hover:scale-110 active:scale-95 border min-w-[48px] min-h-[48px] md:min-w-[56px] md:min-h-[56px] flex items-center justify-center ${
+          <div className={`px-5 py-3 backdrop-blur shadow-lg rounded-full text-sm font-semibold border min-w-[120px] text-center select-none flex flex-col items-center leading-tight ${
               theme === 'dark'
-                ? 'bg-gray-800/95 text-gray-200 border-gray-700 hover:bg-indigo-600 hover:text-white active:bg-indigo-700'
-                : 'bg-white/95 text-stone-700 border-stone-200 hover:bg-indigo-600 hover:text-white active:bg-indigo-700'
-            }`}
-            aria-label="Previous Page"
-          >
-            <Icons.Prev size={24} />
-          </button>
-
-          {/* Page Indicator */}
-          <div className={`px-5 py-2.5 md:px-6 md:py-3 backdrop-blur shadow-lg rounded-full text-sm md:text-base font-semibold border min-w-[110px] md:min-w-[140px] text-center select-none flex flex-col items-center leading-tight ${
-            theme === 'dark'
-              ? 'bg-gray-800/95 text-gray-200 border-gray-700'
-              : 'bg-white/95 text-stone-600 border-stone-200'
+              ? 'bg-gray-800/90 text-gray-200 border-gray-700'
+              : 'bg-white/90 text-stone-600 border-stone-200'
           }`}>
             {isLocationsReady ? (
-              <>
-                <span className={theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}>{t('page')} {currentPage}</span>
-                <span className="text-[10px] md:text-xs opacity-60 uppercase tracking-wider">{t('of')} {totalPages}</span>
-              </>
+                <>
+                    <span className={theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}>{t('page')} {currentPage}</span>
+                    <span className="text-[10px] opacity-60 uppercase tracking-wider">{t('of')} {totalPages}</span>
+                </>
             ) : (
-              <span className="animate-pulse text-xs md:text-sm">{t('calculating')}</span>
+                <span className="animate-pulse text-xs">{t('calculating')}</span>
             )}
           </div>
-
-          {/* Next Page Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              const timestamp = new Date().toISOString();
-              console.log(`[NAV_BTN ${timestamp}] Next button clicked`);
-              goToNextPage();
-              showIndicatorTemporarily();
-            }}
-            className={`p-3 md:p-4 backdrop-blur shadow-lg rounded-full transition-all transform hover:scale-110 active:scale-95 border min-w-[48px] min-h-[48px] md:min-w-[56px] md:min-h-[56px] flex items-center justify-center ${
-              theme === 'dark'
-                ? 'bg-gray-800/95 text-gray-200 border-gray-700 hover:bg-indigo-600 hover:text-white active:bg-indigo-700'
-                : 'bg-white/95 text-stone-700 border-stone-200 hover:bg-indigo-600 hover:text-white active:bg-indigo-700'
-            }`}
-            aria-label="Next Page"
-          >
-            <Icons.Next size={24} />
-          </button>
         </div>
       )}
     </div>
