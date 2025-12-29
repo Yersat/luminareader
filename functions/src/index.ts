@@ -75,7 +75,7 @@ export const chatWithGrok = functions.https.onCall(async (data, context) => {
         'Authorization': `Bearer ${grokApiKey}`,
       },
       body: JSON.stringify({
-        model: 'grok-2-latest',
+        model: 'grok-3-mini',
         messages: [
           { role: 'system', content: systemInstruction },
           { role: 'user', content: userPrompt },
