@@ -9,12 +9,22 @@
 /* Global Styles for Lumina Reader */
 
 /* Ensure the app fills the entire viewport */
+/* Using 100dvh (dynamic viewport height) for iOS keyboard handling */
+/* 100dvh adjusts when the keyboard appears, unlike 100vh or 100% */
 html, body, #root {
-  height: 100%;
+  height: 100dvh;
+  height: 100vh; /* Fallback for older browsers */
   width: 100%;
   margin: 0;
   padding: 0;
   overflow: hidden;
+}
+
+/* Modern browsers support 100dvh - use it when available */
+@supports (height: 100dvh) {
+  html, body, #root {
+    height: 100dvh;
+  }
 }
 
 /* EPUB.js container styles for responsive layout */
@@ -90,9 +100,18 @@ html, body, #root {
   .safe-area-top {
     padding-top: max(env(safe-area-inset-top), 16px);
   }
-  
+
   .safe-area-bottom {
     padding-bottom: max(env(safe-area-inset-bottom), 16px);
+  }
+
+  /* Shorthand classes for Tailwind-like usage */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
 

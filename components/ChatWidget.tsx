@@ -25,7 +25,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -53,34 +52,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
       scrollToBottom();
     }
   }, [messages, isOpen]);
-
-  // Keyboard listeners for mobile
-  useEffect(() => {
-    let showListener: any;
-    let hideListener: any;
-
-    const setupKeyboardListeners = async () => {
-      try {
-        showListener = await Keyboard.addListener('keyboardWillShow', (info) => {
-          setKeyboardHeight(info.keyboardHeight);
-        });
-
-        hideListener = await Keyboard.addListener('keyboardWillHide', () => {
-          setKeyboardHeight(0);
-        });
-      } catch (error) {
-        // Keyboard plugin not available (web browser)
-        console.log('Keyboard plugin not available');
-      }
-    };
-
-    setupKeyboardListeners();
-
-    return () => {
-      showListener?.remove();
-      hideListener?.remove();
-    };
-  }, []);
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || !isPro) return;
@@ -154,21 +125,18 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
         )}
       </button>
 
-      {/* Chat Interface / Drawer */}
+      {/* Full-Screen Chat Interface */}
+      {/* This is a full-screen page that replaces the reader view when open */}
+      {/* Using 100dvh for proper iOS keyboard handling */}
       <div
-        className={`fixed inset-x-0 top-0 z-40 w-full sm:w-96 sm:left-auto sm:right-0 bg-white/95 backdrop-blur-md shadow-2xl transform transition-all duration-300 ease-in-out border-l border-gray-100 ${
+        className={`fixed inset-0 z-[100] bg-white flex flex-col transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
-        style={{
-          bottom: keyboardHeight > 0 ? `${keyboardHeight}px` : '0px',
-          transition: 'bottom 0.25s ease-out'
-        }}
+        style={{ height: '100dvh' }}
       >
-        <div className="flex flex-col h-full relative">
-          
           {/* Pro Gate Overlay (if not pro) */}
           {!isPro && (
-             <div className="absolute inset-0 z-50 bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+             <div className="absolute inset-0 z-50 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center safe-area-top">
                  <div className="bg-white p-6 rounded-2xl shadow-xl border border-indigo-100 max-w-sm w-full">
                      <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-200">
                         <Icons.Crown className="text-white" size={28} />
@@ -177,7 +145,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
                      <p className="text-gray-500 text-sm mb-6">
                         {t('upgrade_msg')}
                      </p>
-                     
+
                      <div className="space-y-3">
                         <div className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 p-2 rounded-lg">
                             <Icons.Check size={16} className="text-green-500 shrink-0" />
@@ -189,7 +157,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
                         </div>
                      </div>
 
-                     <button 
+                     <button
                         onClick={() => {
                             setIsOpen(false);
                             onUpgrade();
@@ -198,27 +166,58 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
                      >
                         {t('upgrade_btn')} <Icons.ArrowRight size={18} />
                      </button>
+
+                     {/* Back button for non-pro users */}
+                     <button
+                        onClick={() => setIsOpen(false)}
+                        className="w-full mt-3 py-2 text-gray-500 text-sm hover:text-gray-700"
+                     >
+                        ← {t('back') || 'Back to book'}
+                     </button>
                  </div>
              </div>
           )}
 
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white/80">
+          {/* Header with safe area for notch */}
+          <div className="flex items-center justify-between p-4 pt-safe border-b border-gray-100 bg-white shrink-0">
+            <button
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2 text-indigo-600 font-medium"
+            >
+                <Icons.ArrowLeft size={20} />
+                <span>{t('back') || 'Back'}</span>
+            </button>
             <div className="flex items-center gap-2 text-indigo-700 font-semibold">
               <Icons.Sparkles size={18} />
               <span>{t('ai_companion')}</span>
               {isPro && <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-bold">PRO</span>}
             </div>
-            <button 
-                onClick={() => setIsOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
-            >
-                <Icons.Close size={20} />
-            </button>
+            <div className="w-16" /> {/* Spacer for balance */}
           </div>
 
-          {/* Messages Area */}
-          <div className={`flex-1 overflow-y-auto p-4 space-y-4 bg-stone-50 ${!isPro ? 'opacity-30 pointer-events-none' : ''}`}>
+          {/* Context Preview - now more prominent since user can't see the book */}
+          {selection && isPro && (
+            <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-100 shrink-0">
+                <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-indigo-600 mb-1 flex items-center gap-1">
+                            <Icons.Book size={12} /> {t('selected_context')}
+                        </p>
+                        <p className="text-sm text-gray-700 italic line-clamp-3">"{selection.text}"</p>
+                    </div>
+                    <button
+                        onClick={onClearSelection}
+                        className="ml-2 p-1.5 text-indigo-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors shrink-0"
+                        title={t('clear')}
+                    >
+                        <Icons.Clear size={16} />
+                    </button>
+                </div>
+            </div>
+          )}
+
+          {/* Messages Area - flex-1 takes remaining space */}
+          <div className={`flex-1 overflow-y-auto p-4 space-y-4 bg-stone-50 min-h-0 ${!isPro ? 'opacity-30 pointer-events-none' : ''}`}>
             {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -251,27 +250,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Context Preview (if text selected) */}
-          {selection && isPro && (
-            <div className="px-4 py-2 bg-indigo-50 border-t border-indigo-100 flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-indigo-600 mb-1 flex items-center gap-1">
-                        <Icons.Book size={12} /> {t('selected_context')}
-                    </p>
-                    <p className="text-sm text-gray-600 truncate italic">"{selection.text}"</p>
-                </div>
-                <button 
-                    onClick={onClearSelection}
-                    className="ml-2 p-1.5 text-indigo-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                    title={t('clear')}
-                >
-                    <Icons.Clear size={16} />
-                </button>
-            </div>
-          )}
-
-          {/* Input Area */}
-          <div className={`p-4 bg-white border-t border-gray-100 safe-area-bottom ${!isPro ? 'opacity-30 pointer-events-none' : ''}`}>
+          {/* Input Area - shrink-0 to keep fixed size */}
+          <div className={`p-4 pb-safe bg-white border-t border-gray-100 shrink-0 ${!isPro ? 'opacity-30 pointer-events-none' : ''}`}>
             <div className="flex items-center gap-2 bg-gray-50 rounded-full px-4 py-2 border border-gray-200 focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
               <input
                 ref={inputRef}
@@ -293,7 +273,6 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
               </button>
             </div>
           </div>
-        </div>
       </div>
     </>
   );
