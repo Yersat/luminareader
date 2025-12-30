@@ -16,11 +16,29 @@ interface ChatWidgetProps {
 
 export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelection, isPro, onUpgrade, onOpenChange }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Notify parent when isOpen changes
   useEffect(() => {
     onOpenChange?.(isOpen);
   }, [isOpen, onOpenChange]);
+
+  // Listen for keyboard show/hide to adjust input position
+  useEffect(() => {
+    const showListener = Keyboard.addListener('keyboardWillShow', (info) => {
+      setKeyboardHeight(info.keyboardHeight);
+    });
+
+    const hideListener = Keyboard.addListener('keyboardWillHide', () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showListener.then(handle => handle.remove());
+      hideListener.then(handle => handle.remove());
+    };
+  }, []);
+
   const { t, language } = useLanguage();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -250,8 +268,11 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ selection, onClearSelect
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area - shrink-0 to keep fixed size */}
-          <div className={`p-4 pb-safe bg-white border-t border-gray-100 shrink-0 ${!isPro ? 'opacity-30 pointer-events-none' : ''}`}>
+          {/* Input Area - shrink-0 to keep fixed size, moves up when keyboard is visible */}
+          <div
+            className={`p-4 bg-white border-t border-gray-100 shrink-0 transition-all duration-200 ${!isPro ? 'opacity-30 pointer-events-none' : ''}`}
+            style={{ paddingBottom: keyboardHeight > 0 ? `${keyboardHeight}px` : 'env(safe-area-inset-bottom, 16px)' }}
+          >
             <div className="flex items-center gap-2 bg-gray-50 rounded-full px-4 py-2 border border-gray-200 focus-within:border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
               <input
                 ref={inputRef}
