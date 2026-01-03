@@ -19,7 +19,7 @@ interface ReaderProps {
   fontSize: number;
   theme: 'light' | 'sepia' | 'dark';
   location?: string | null;
-  onLocationChange?: (cfi: string) => void;
+  onLocationChange?: (cfi: string, progress: number) => void;
   isChatOpen?: boolean; // Hide navigation when chat is open
   selection?: SelectionData | null; // Current selection - when null, clear any highlight
 }
@@ -537,16 +537,11 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         setCurrentLocation(cfi);
         logPageIndicator('RELOCATED_AFTER_SET_CURRENT_LOCATION');
 
-        if (onLocationChange) {
-          logPageIndicator('RELOCATED_BEFORE_ON_LOCATION_CHANGE');
-          onLocationChange(cfi);
-          logPageIndicator('RELOCATED_AFTER_ON_LOCATION_CHANGE');
-        }
-
 	        		// Update page number using epub.js locations
 	        // Prefer the location indices provided by the relocated event itself
 	        // (loc.start.location / loc.end.location). Fall back to
 	        // book.locations.locationFromCfi(cfi) only if needed.
+        // Note: onLocationChange callback is called after progress is calculated
 	        		if (book.locations && book.locations.length() > 0) {
 	          const total = book.locations.length();
 
@@ -744,7 +739,22 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
 	              setCurrentChapterName('');
 	            }
 	          }
-	        }
+
+          // Call onLocationChange with CFI and progress percentage
+          if (onLocationChange && startLocationIndex !== null) {
+            const progress = Math.round((startLocationIndex / total) * 100);
+            logPageIndicator('RELOCATED_BEFORE_ON_LOCATION_CHANGE', { cfi, progress });
+            onLocationChange(cfi, progress);
+            logPageIndicator('RELOCATED_AFTER_ON_LOCATION_CHANGE');
+          }
+	        } else {
+          // Locations not ready yet - still call onLocationChange with 0 progress
+          if (onLocationChange) {
+            logPageIndicator('RELOCATED_BEFORE_ON_LOCATION_CHANGE_NO_LOCATIONS', { cfi });
+            onLocationChange(cfi, 0);
+            logPageIndicator('RELOCATED_AFTER_ON_LOCATION_CHANGE_NO_LOCATIONS');
+          }
+        }
 
         logPageIndicator('RELOCATED_EVENT_COMPLETE');
       } catch (error) {

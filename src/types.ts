@@ -23,6 +23,10 @@ export interface Book {
   needsReupload?: boolean;
   uploadedAt: Timestamp;
   lastOpened: Timestamp;
+  /** Last reading position (CFI string) - used to restore reading position */
+  lastReadCfi?: string;
+  /** Reading progress as a percentage (0-100) */
+  readingProgress?: number;
 }
 
 /**

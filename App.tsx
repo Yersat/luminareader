@@ -34,6 +34,7 @@ function App() {
   // Reader State
   const [bookmarks, setBookmarks] = useState<Record<string, Bookmark[]>>({});
   const [currentCfi, setCurrentCfi] = useState<string>('');
+  const [currentProgress, setCurrentProgress] = useState<number>(0);
   const [targetLocation, setTargetLocation] = useState<string | null>(null);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -101,7 +102,9 @@ function App() {
         file: null, // Will be populated with a File or ArrayBuffer when opened
         fileUrl: book.fileUrl,
         coverColor: book.coverColor || getRandomColor(),
-        addedAt: book.uploadedAt?.toMillis() || Date.now()
+        addedAt: book.uploadedAt?.toMillis() || Date.now(),
+        lastReadCfi: book.lastReadCfi,
+        readingProgress: book.readingProgress
       }));
 
       setLibrary(bookData);
@@ -243,7 +246,8 @@ function App() {
     if (book.file) {
       setActiveBookId(bookId);
       setSelection(null);
-      setTargetLocation(null); // Reset target location logic
+      // Restore last reading position if available
+      setTargetLocation(book.lastReadCfi || null);
       setShowSettings(false);
       setView('reader');
       return;
@@ -271,7 +275,8 @@ function App() {
 
       setActiveBookId(bookId);
       setSelection(null);
-      setTargetLocation(null); // Reset target location logic
+      // Restore last reading position if available
+      setTargetLocation(book.lastReadCfi || null);
       setShowSettings(false);
       setView('reader');
     } catch (error) {
@@ -280,7 +285,25 @@ function App() {
     }
   };
 
-  const handleBackToLibrary = () => {
+  const handleBackToLibrary = async () => {
+    // Save reading progress before leaving
+    if (activeBookId && currentCfi) {
+      try {
+        await bookService.saveReadingProgress(activeBookId, currentCfi, currentProgress);
+        console.log('Reading progress saved:', { bookId: activeBookId, cfi: currentCfi, progress: currentProgress });
+
+        // Update local state to reflect the saved progress
+        setLibrary(prev => prev.map(b =>
+          b.id === activeBookId
+            ? { ...b, lastReadCfi: currentCfi, readingProgress: currentProgress }
+            : b
+        ));
+      } catch (error) {
+        console.error('Error saving reading progress:', error);
+        // Don't block navigation on error - just log it
+      }
+    }
+
     setView('library');
     setActiveBookId(null);
     setSelection(null);
@@ -338,8 +361,9 @@ function App() {
       setView('profile');
   };
 
-  const handleLocationChange = (cfi: string) => {
+  const handleLocationChange = (cfi: string, progress: number) => {
       setCurrentCfi(cfi);
+      setCurrentProgress(progress);
       setTargetLocation(null); // Clear target once reached to avoid loops
   };
 
@@ -527,6 +551,22 @@ function App() {
                 <div className="px-1">
                    <h3 className="font-semibold text-gray-800 text-sm truncate">{book.title}</h3>
                    <p className="text-xs text-gray-500 truncate">{book.author}</p>
+                   {/* Reading Progress Indicator */}
+                   {book.readingProgress !== undefined && book.readingProgress > 0 && (
+                     <div className="mt-1.5">
+                       <div className="flex items-center gap-2">
+                         <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                           <div
+                             className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                             style={{ width: `${book.readingProgress}%` }}
+                           />
+                         </div>
+                         <span className="text-xs text-indigo-600 font-medium whitespace-nowrap">
+                           {book.readingProgress}%
+                         </span>
+                       </div>
+                     </div>
+                   )}
                 </div>
               </div>
             ))}

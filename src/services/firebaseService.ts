@@ -135,6 +135,18 @@ export const bookService = {
     await updateDoc(docRef, {
       lastOpened: Timestamp.now()
     });
+  },
+
+  /**
+   * Save reading progress (position and percentage)
+   */
+  async saveReadingProgress(bookId: string, lastReadCfi: string, readingProgress: number) {
+    const docRef = doc(db, 'books', bookId);
+    await updateDoc(docRef, {
+      lastReadCfi,
+      readingProgress,
+      lastOpened: Timestamp.now()
+    });
   }
 };
 
