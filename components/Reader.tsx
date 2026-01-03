@@ -21,9 +21,10 @@ interface ReaderProps {
   location?: string | null;
   onLocationChange?: (cfi: string) => void;
   isChatOpen?: boolean; // Hide navigation when chat is open
+  selection?: SelectionData | null; // Current selection - when null, clear any highlight
 }
 
-export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, theme, location, onLocationChange, isChatOpen = false }) => {
+export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, theme, location, onLocationChange, isChatOpen = false, selection }) => {
   const viewerRef = useRef<HTMLDivElement>(null);
   const bookRef = useRef<Book | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
@@ -71,6 +72,22 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
   useEffect(() => {
     isChatOpenRef.current = isChatOpen;
   }, [isChatOpen]);
+
+  // Ref to track the current highlight CFI range (for removal when selection is cleared)
+  const currentHighlightCfiRef = useRef<string | null>(null);
+
+  // Clear highlight annotation when selection becomes null
+  useEffect(() => {
+    if (selection === null && currentHighlightCfiRef.current && renditionRef.current) {
+      console.log('[HIGHLIGHT] Clearing highlight annotation:', currentHighlightCfiRef.current);
+      try {
+        renditionRef.current.annotations.remove(currentHighlightCfiRef.current, 'highlight');
+      } catch (e) {
+        console.log('[HIGHLIGHT] Error removing annotation:', e);
+      }
+      currentHighlightCfiRef.current = null;
+    }
+  }, [selection]);
 
   // Ref to call showIndicatorTemporarily from event handlers
   const showIndicatorRef = useRef<(() => void) | null>(null);
@@ -161,10 +178,26 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
     sectionPageRef.current = pageNum;
   }, []);
 
+  // Helper function to clear highlight on navigation
+  const clearHighlightOnNavigation = useCallback(() => {
+    if (currentHighlightCfiRef.current && renditionRef.current) {
+      console.log('[HIGHLIGHT] Clearing highlight on navigation:', currentHighlightCfiRef.current);
+      try {
+        renditionRef.current.annotations.remove(currentHighlightCfiRef.current, 'highlight');
+      } catch (e) {
+        console.log('[HIGHLIGHT] Error removing annotation on navigation:', e);
+      }
+      currentHighlightCfiRef.current = null;
+    }
+  }, []);
+
   // Navigate to next page within section, or next section if at end
   const goToNextPage = useCallback(() => {
     const rendition = renditionRef.current;
     if (!rendition) return;
+
+    // Clear any highlight when navigating to prevent it from persisting
+    clearHighlightOnNavigation();
 
     const currentPage = sectionPageRef.current;
     const totalPages = sectionTotalPagesRef.current;
@@ -196,12 +229,15 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         console.log(`[TRANSFORM_NAV ${timestamp}] Moved to next section, reset to page 1`);
       });
     }
-  }, [applyPageTransform, updatePageNonBlocking]);
+  }, [applyPageTransform, updatePageNonBlocking, clearHighlightOnNavigation]);
 
   // Navigate to previous page within section, or previous section if at start
   const goToPrevPage = useCallback(() => {
     const rendition = renditionRef.current;
     if (!rendition) return;
+
+    // Clear any highlight when navigating to prevent it from persisting
+    clearHighlightOnNavigation();
 
     const currentPage = sectionPageRef.current;
     const timestamp = new Date().toISOString();
@@ -241,7 +277,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         }, 50);
       });
     }
-  }, [applyPageTransform, updatePageNonBlocking]);
+  }, [applyPageTransform, updatePageNonBlocking, clearHighlightOnNavigation]);
 
   useEffect(() => {
     const initTimestamp = new Date().toISOString();
@@ -726,7 +762,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         book.getRange(cfiRange).then((range) => {
             const text = range.toString();
             const cleanText = text.replace(/\s+/g, ' ').trim();
-            
+
             if (cleanText.length > 0) {
                 console.log("Selected:", cleanText);
                 onTextSelected({
@@ -735,7 +771,19 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
                 });
             }
         });
+        // Clear any previous highlight before adding a new one
+        if (currentHighlightCfiRef.current) {
+            try {
+                rendition.annotations.remove(currentHighlightCfiRef.current, 'highlight');
+                console.log('[HIGHLIGHT] Removed previous highlight:', currentHighlightCfiRef.current);
+            } catch (e) {
+                console.log('[HIGHLIGHT] Error removing previous highlight:', e);
+            }
+        }
+        // Add new highlight and store the CFI for later removal
         rendition.annotations.add('highlight', cfiRange, {}, null, 'hl');
+        currentHighlightCfiRef.current = cfiRange;
+        console.log('[HIGHLIGHT] Added new highlight:', cfiRange);
     });
     
     // Handle tap navigation inside the epub iframe (like iBooks)

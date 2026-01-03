@@ -696,6 +696,7 @@ function App() {
             location={targetLocation}
             onLocationChange={handleLocationChange}
             isChatOpen={isChatOpen}
+            selection={selection}
           />
 
           {/* Bookmarks & Menu Sidebar/Drawer */}
