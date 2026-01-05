@@ -562,7 +562,7 @@ function App() {
                            />
                          </div>
                          <span className="text-xs text-indigo-600 font-medium whitespace-nowrap">
-                           {book.readingProgress}%
+                           {Math.round(book.readingProgress)}%
                          </span>
                        </div>
                      </div>

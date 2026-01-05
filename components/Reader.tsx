@@ -19,7 +19,7 @@ interface ReaderProps {
   fontSize: number;
   theme: 'light' | 'sepia' | 'dark';
   location?: string | null;
-  onLocationChange?: (cfi: string) => void;
+  onLocationChange?: (cfi: string, progress: number) => void;
   isChatOpen?: boolean; // Hide navigation when chat is open
 }
 
@@ -484,11 +484,8 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         setCurrentLocation(cfi);
         logPageIndicator('RELOCATED_AFTER_SET_CURRENT_LOCATION');
 
-        if (onLocationChange) {
-          logPageIndicator('RELOCATED_BEFORE_ON_LOCATION_CHANGE');
-          onLocationChange(cfi);
-          logPageIndicator('RELOCATED_AFTER_ON_LOCATION_CHANGE');
-        }
+        // Note: We'll call onLocationChange later in this handler after calculating
+        // the effective location index, so we can pass accurate progress percentage.
 
 	        		// Update page number using epub.js locations
 	        // Prefer the location indices provided by the relocated event itself
@@ -740,6 +737,19 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
 	            }
 	          }
 	        }
+
+        // Now call onLocationChange with the CFI and calculated progress percentage
+        if (onLocationChange) {
+          // Calculate progress based on current global page position
+          const currentSectionPage = sectionPageRef.current;
+          const globalPage = sectionStartGlobalPageRef.current + (currentSectionPage - 1);
+          const totalLocs = book.locations?.length() || 1;
+          const progressPercent = Math.min(100, Math.max(0, (globalPage / totalLocs) * 100));
+
+          logPageIndicator('RELOCATED_BEFORE_ON_LOCATION_CHANGE', { cfi, globalPage, totalLocs, progressPercent });
+          onLocationChange(cfi, progressPercent);
+          logPageIndicator('RELOCATED_AFTER_ON_LOCATION_CHANGE');
+        }
 
         logPageIndicator('RELOCATED_EVENT_COMPLETE');
       } catch (error) {
