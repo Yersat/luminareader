@@ -444,7 +444,8 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         body: { color: '#5f4b32', background: '#f6ead5' }
       });
       rendition.themes.register('dark', {
-        body: { color: '#dbdbdb', background: '#202020' }
+        body: { color: '#ffffff', background: '#202020' },
+        'p, span, div, h1, h2, h3, h4, h5, h6, li, a, em, strong, blockquote': { color: '#ffffff !important' }
       });
 
       // Apply initial settings
