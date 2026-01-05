@@ -19,12 +19,11 @@ interface ReaderProps {
   fontSize: number;
   theme: 'light' | 'sepia' | 'dark';
   location?: string | null;
-  onLocationChange?: (cfi: string, progress: number) => void;
+  onLocationChange?: (cfi: string) => void;
   isChatOpen?: boolean; // Hide navigation when chat is open
-  selection?: SelectionData | null; // Current selection - when null, clear any highlight
 }
 
-export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, theme, location, onLocationChange, isChatOpen = false, selection }) => {
+export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, theme, location, onLocationChange, isChatOpen = false }) => {
   const viewerRef = useRef<HTMLDivElement>(null);
   const bookRef = useRef<Book | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
@@ -72,22 +71,6 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
   useEffect(() => {
     isChatOpenRef.current = isChatOpen;
   }, [isChatOpen]);
-
-  // Ref to track the current highlight CFI range (for removal when selection is cleared)
-  const currentHighlightCfiRef = useRef<string | null>(null);
-
-  // Clear highlight annotation when selection becomes null
-  useEffect(() => {
-    if (selection === null && currentHighlightCfiRef.current && renditionRef.current) {
-      console.log('[HIGHLIGHT] Clearing highlight annotation:', currentHighlightCfiRef.current);
-      try {
-        renditionRef.current.annotations.remove(currentHighlightCfiRef.current, 'highlight');
-      } catch (e) {
-        console.log('[HIGHLIGHT] Error removing annotation:', e);
-      }
-      currentHighlightCfiRef.current = null;
-    }
-  }, [selection]);
 
   // Ref to call showIndicatorTemporarily from event handlers
   const showIndicatorRef = useRef<(() => void) | null>(null);
@@ -140,6 +123,11 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
   const sectionTotalPagesRef = useRef<number>(1); // Total pages in current section
   const containerWidthRef = useRef<number>(0);    // Width of one page/column
   const sectionStartGlobalPageRef = useRef<number>(1); // Global page number at start of this section
+  // Track the current section href to detect when section actually changes
+  const currentSectionHrefRef = useRef<string | null>(null);
+  // When navigating to previous section, we want to go to the LAST page, not page 1
+  // This flag tells the relocated handler to apply the last-page transform after section loads
+  const goToLastPageOfSectionRef = useRef<boolean>(false);
 
   // Apply CSS transform to show the correct page within a section
   const applyPageTransform = useCallback((pageNum: number) => {
@@ -178,26 +166,10 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
     sectionPageRef.current = pageNum;
   }, []);
 
-  // Helper function to clear highlight on navigation
-  const clearHighlightOnNavigation = useCallback(() => {
-    if (currentHighlightCfiRef.current && renditionRef.current) {
-      console.log('[HIGHLIGHT] Clearing highlight on navigation:', currentHighlightCfiRef.current);
-      try {
-        renditionRef.current.annotations.remove(currentHighlightCfiRef.current, 'highlight');
-      } catch (e) {
-        console.log('[HIGHLIGHT] Error removing annotation on navigation:', e);
-      }
-      currentHighlightCfiRef.current = null;
-    }
-  }, []);
-
   // Navigate to next page within section, or next section if at end
   const goToNextPage = useCallback(() => {
     const rendition = renditionRef.current;
     if (!rendition) return;
-
-    // Clear any highlight when navigating to prevent it from persisting
-    clearHighlightOnNavigation();
 
     const currentPage = sectionPageRef.current;
     const totalPages = sectionTotalPagesRef.current;
@@ -207,37 +179,27 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
     console.log(`[TRANSFORM_NAV ${timestamp}] Current: section page ${currentPage} of ${totalPages}, sectionStart=${sectionStartGlobalPageRef.current}`);
 
     if (currentPage < totalPages) {
-      // Can go to next page within this section
+      // Can go to next page within this section - just apply CSS transform
       const newPage = currentPage + 1;
       console.log(`[TRANSFORM_NAV ${timestamp}] Moving to page ${newPage} within section`);
       applyPageTransform(newPage);
 
       // Calculate global page using our stored section start + offset
-      // sectionStartGlobalPageRef is the global page when section starts (page 1 of section)
-      // So page 2 of section = sectionStart + 1, page 3 = sectionStart + 2, etc.
       const newGlobalPage = sectionStartGlobalPageRef.current + (newPage - 1);
       updatePageNonBlocking(newGlobalPage);
-      console.log(`[TRANSFORM_NAV ${timestamp}] Updated global page to ${newGlobalPage} (sectionStart=${sectionStartGlobalPageRef.current} + offset=${newPage - 1})`);
+      console.log(`[TRANSFORM_NAV ${timestamp}] Updated global page to ${newGlobalPage}`);
     } else {
       // At end of section, go to next section/chapter
+      // The relocated event will handle resetting to page 1 when section changes
       console.log(`[TRANSFORM_NAV ${timestamp}] At end of section, calling rendition.next()`);
-      rendition.next().then(() => {
-        // Reset to page 1 of new section
-        // Note: sectionStartGlobalPageRef will be updated by the relocated event
-        sectionPageRef.current = 1;
-        applyPageTransform(1);
-        console.log(`[TRANSFORM_NAV ${timestamp}] Moved to next section, reset to page 1`);
-      });
+      rendition.next();
     }
-  }, [applyPageTransform, updatePageNonBlocking, clearHighlightOnNavigation]);
+  }, [applyPageTransform, updatePageNonBlocking]);
 
   // Navigate to previous page within section, or previous section if at start
   const goToPrevPage = useCallback(() => {
     const rendition = renditionRef.current;
     if (!rendition) return;
-
-    // Clear any highlight when navigating to prevent it from persisting
-    clearHighlightOnNavigation();
 
     const currentPage = sectionPageRef.current;
     const timestamp = new Date().toISOString();
@@ -246,7 +208,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
     console.log(`[TRANSFORM_NAV ${timestamp}] Current: section page ${currentPage} of ${sectionTotalPagesRef.current}, sectionStart=${sectionStartGlobalPageRef.current}`);
 
     if (currentPage > 1) {
-      // Can go to previous page within this section
+      // Can go to previous page within this section - just apply CSS transform
       const newPage = currentPage - 1;
       console.log(`[TRANSFORM_NAV ${timestamp}] Moving to page ${newPage} within section`);
       applyPageTransform(newPage);
@@ -254,30 +216,15 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
       // Calculate global page using our stored section start + offset
       const newGlobalPage = sectionStartGlobalPageRef.current + (newPage - 1);
       updatePageNonBlocking(newGlobalPage);
-      console.log(`[TRANSFORM_NAV ${timestamp}] Updated global page to ${newGlobalPage} (sectionStart=${sectionStartGlobalPageRef.current} + offset=${newPage - 1})`);
+      console.log(`[TRANSFORM_NAV ${timestamp}] Updated global page to ${newGlobalPage}`);
     } else {
       // At start of section, go to previous section/chapter
+      // Set flag so relocated handler knows to go to LAST page of the new section
       console.log(`[TRANSFORM_NAV ${timestamp}] At start of section, calling rendition.prev()`);
-      rendition.prev().then(() => {
-        // Go to last page of previous section
-        // Note: sectionStartGlobalPageRef will be updated by the relocated event
-        // Then we need to apply transform to the last page of that section
-        const loc = rendition.currentLocation();
-        const total = loc?.start?.displayed?.total || 1;
-        sectionTotalPagesRef.current = total;
-        sectionPageRef.current = total;
-        applyPageTransform(total);
-
-        // Update global page to last page of previous section
-        // Wait a bit for relocated event to update sectionStartGlobalPageRef
-        setTimeout(() => {
-          const lastPageGlobal = sectionStartGlobalPageRef.current + (total - 1);
-          updatePageNonBlocking(lastPageGlobal);
-          console.log(`[TRANSFORM_NAV ${timestamp}] Moved to prev section last page, global=${lastPageGlobal}`);
-        }, 50);
-      });
+      goToLastPageOfSectionRef.current = true;
+      rendition.prev();
     }
-  }, [applyPageTransform, updatePageNonBlocking, clearHighlightOnNavigation]);
+  }, [applyPageTransform, updatePageNonBlocking]);
 
   useEffect(() => {
     const initTimestamp = new Date().toISOString();
@@ -537,11 +484,16 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         setCurrentLocation(cfi);
         logPageIndicator('RELOCATED_AFTER_SET_CURRENT_LOCATION');
 
+        if (onLocationChange) {
+          logPageIndicator('RELOCATED_BEFORE_ON_LOCATION_CHANGE');
+          onLocationChange(cfi);
+          logPageIndicator('RELOCATED_AFTER_ON_LOCATION_CHANGE');
+        }
+
 	        		// Update page number using epub.js locations
 	        // Prefer the location indices provided by the relocated event itself
 	        // (loc.start.location / loc.end.location). Fall back to
 	        // book.locations.locationFromCfi(cfi) only if needed.
-        // Note: onLocationChange callback is called after progress is calculated
 	        		if (book.locations && book.locations.length() > 0) {
 	          const total = book.locations.length();
 
@@ -642,39 +594,85 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
 	        		    currentDisplayedTotalRef.current = startDisplayed.total;
 
               // ========== SYNC TRANSFORM-BASED PAGINATION ==========
-              // When epub.js navigates to a new section (via rendition.next/prev),
-              // we need to sync our transform-based pagination state.
-              // Reset to page 1 and store the total pages for this section.
-              sectionTotalPagesRef.current = startDisplayed.total;
-              // Reset visual page to 1 and clear any transform
-              sectionPageRef.current = 1;
+              // Only reset pagination state when the SECTION actually changes.
+              // This prevents the race condition where relocated fires during
+              // CSS transform navigation within the same section.
 
-              // IMPORTANT: Store the global page number for the START of this section
-              // This is used for calculating global page when navigating within section
-              // startLocationIndex is 0-based, so +1 gives us 1-based page number
-              if (startLocationIndex !== null && startLocationIndex >= 0) {
-                sectionStartGlobalPageRef.current = startLocationIndex + 1;
-                console.log(`[RELOCATED] Set sectionStartGlobalPage to ${sectionStartGlobalPageRef.current} (from location ${startLocationIndex})`);
-              }
+              const newSectionHref = loc?.start?.href || null;
+              const sectionChanged = newSectionHref !== currentSectionHrefRef.current;
+
+              console.log(`[RELOCATED] Section check: current="${currentSectionHrefRef.current}", new="${newSectionHref}", changed=${sectionChanged}`);
+
+              // Always update the section href tracking
+              currentSectionHrefRef.current = newSectionHref;
 
               // Store container width for transform calculations
               const manager = (rendition as any).manager;
               if (manager?.container) {
                 containerWidthRef.current = manager.container.clientWidth;
               }
-              // Reset the transform (in case we navigated via rendition.next/prev)
-              try {
-                const views = manager?.views;
-                if (views?._views?.length > 0) {
-                  const view = views._views[0];
-                  const doc = view?.contents?.document;
-                  if (doc?.documentElement) {
-                    doc.documentElement.style.transform = 'translateX(0)';
-                    console.log(`[RELOCATED] Reset transform to translateX(0), section has ${startDisplayed.total} pages`);
+
+              if (sectionChanged) {
+                // Section actually changed - update pagination state
+                sectionTotalPagesRef.current = startDisplayed.total;
+
+                // Check if we should go to the LAST page (when navigating backward)
+                if (goToLastPageOfSectionRef.current) {
+                  // Going backward - navigate to last page of this section
+                  const lastPage = startDisplayed.total;
+                  sectionPageRef.current = lastPage;
+                  goToLastPageOfSectionRef.current = false; // Clear the flag
+
+                  console.log(`[RELOCATED] Going to LAST page of section: page ${lastPage} of ${startDisplayed.total}`);
+
+                  // Apply transform to show last page
+                  try {
+                    const views = manager?.views;
+                    if (views?._views?.length > 0) {
+                      const view = views._views[0];
+                      const doc = view?.contents?.document;
+                      if (doc?.documentElement) {
+                        const containerWidth = containerWidthRef.current || manager.container?.clientWidth || 440;
+                        const offset = (lastPage - 1) * containerWidth;
+                        doc.documentElement.style.transform = `translateX(-${offset}px)`;
+                        doc.documentElement.style.transition = 'transform 0.2s ease-out';
+                        console.log(`[RELOCATED] Applied transform for last page: translateX(-${offset}px)`);
+                      }
+                    }
+                  } catch (e) {
+                    console.log(`[RELOCATED] Could not apply last page transform:`, e);
+                  }
+                } else {
+                  // Going forward or initial load - start at page 1
+                  sectionPageRef.current = 1;
+
+                  console.log(`[RELOCATED] Starting at page 1 of ${startDisplayed.total}`);
+
+                  // Reset transform to show page 1
+                  try {
+                    const views = manager?.views;
+                    if (views?._views?.length > 0) {
+                      const view = views._views[0];
+                      const doc = view?.contents?.document;
+                      if (doc?.documentElement) {
+                        doc.documentElement.style.transform = 'translateX(0)';
+                        console.log(`[RELOCATED] Reset transform to translateX(0)`);
+                      }
+                    }
+                  } catch (e) {
+                    console.log(`[RELOCATED] Could not reset transform:`, e);
                   }
                 }
-              } catch (e) {
-                console.log(`[RELOCATED] Could not reset transform:`, e);
+
+                // Update the global page number for the START of this section
+                if (startLocationIndex !== null && startLocationIndex >= 0) {
+                  sectionStartGlobalPageRef.current = startLocationIndex + 1;
+                  console.log(`[RELOCATED] Set sectionStartGlobalPage to ${sectionStartGlobalPageRef.current}`);
+                }
+              } else {
+                // Same section - don't reset pagination state
+                // This happens when relocated fires during CSS transform navigation
+                console.log(`[RELOCATED] Same section - keeping current page ${sectionPageRef.current} of ${sectionTotalPagesRef.current}`);
               }
 	        		  }
 
@@ -701,12 +699,14 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
 	            console.log(`[RELOCATED] ⚠️ LARGE JUMP DETECTED: ${locationChange} locations (possible chapter jump)`);
 	          }
 
-	          // Use the start location index as the basis for the displayed page
+	          // Calculate the displayed global page number
+	          // Use our CSS transform pagination state for accurate page display
 	          if (startLocationIndex !== null && startLocationIndex >= 0) {
-	            // Location index is 0-based, display as 1-based page number
-	            const pageNum = Math.max(1, startLocationIndex + 1);
-	            logPageIndicator('RELOCATED_BEFORE_SET_PAGE', { pageNum, total });
-	            updatePageNonBlocking(pageNum);
+	            // Calculate global page: section start + current page offset within section
+	            const currentSectionPage = sectionPageRef.current;
+	            const globalPage = sectionStartGlobalPageRef.current + (currentSectionPage - 1);
+	            logPageIndicator('RELOCATED_BEFORE_SET_PAGE', { globalPage, sectionPage: currentSectionPage, sectionStart: sectionStartGlobalPageRef.current, total });
+	            updatePageNonBlocking(globalPage);
 	            logPageIndicator('RELOCATED_AFTER_SET_PAGE');
 	          }
 
@@ -739,22 +739,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
 	              setCurrentChapterName('');
 	            }
 	          }
-
-          // Call onLocationChange with CFI and progress percentage
-          if (onLocationChange && startLocationIndex !== null) {
-            const progress = Math.round((startLocationIndex / total) * 100);
-            logPageIndicator('RELOCATED_BEFORE_ON_LOCATION_CHANGE', { cfi, progress });
-            onLocationChange(cfi, progress);
-            logPageIndicator('RELOCATED_AFTER_ON_LOCATION_CHANGE');
-          }
-	        } else {
-          // Locations not ready yet - still call onLocationChange with 0 progress
-          if (onLocationChange) {
-            logPageIndicator('RELOCATED_BEFORE_ON_LOCATION_CHANGE_NO_LOCATIONS', { cfi });
-            onLocationChange(cfi, 0);
-            logPageIndicator('RELOCATED_AFTER_ON_LOCATION_CHANGE_NO_LOCATIONS');
-          }
-        }
+	        }
 
         logPageIndicator('RELOCATED_EVENT_COMPLETE');
       } catch (error) {
@@ -772,7 +757,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
         book.getRange(cfiRange).then((range) => {
             const text = range.toString();
             const cleanText = text.replace(/\s+/g, ' ').trim();
-
+            
             if (cleanText.length > 0) {
                 console.log("Selected:", cleanText);
                 onTextSelected({
@@ -781,19 +766,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
                 });
             }
         });
-        // Clear any previous highlight before adding a new one
-        if (currentHighlightCfiRef.current) {
-            try {
-                rendition.annotations.remove(currentHighlightCfiRef.current, 'highlight');
-                console.log('[HIGHLIGHT] Removed previous highlight:', currentHighlightCfiRef.current);
-            } catch (e) {
-                console.log('[HIGHLIGHT] Error removing previous highlight:', e);
-            }
-        }
-        // Add new highlight and store the CFI for later removal
         rendition.annotations.add('highlight', cfiRange, {}, null, 'hl');
-        currentHighlightCfiRef.current = cfiRange;
-        console.log('[HIGHLIGHT] Added new highlight:', cfiRange);
     });
     
     // Handle tap navigation inside the epub iframe (like iBooks)
