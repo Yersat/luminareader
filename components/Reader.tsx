@@ -21,9 +21,10 @@ interface ReaderProps {
   location?: string | null;
   onLocationChange?: (cfi: string, progress: number) => void;
   isChatOpen?: boolean; // Hide navigation when chat is open
+  selection?: SelectionData | null; // Current text selection (null when cleared)
 }
 
-export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, theme, location, onLocationChange, isChatOpen = false }) => {
+export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, theme, location, onLocationChange, isChatOpen = false, selection }) => {
   const viewerRef = useRef<HTMLDivElement>(null);
   const bookRef = useRef<Book | null>(null);
   const renditionRef = useRef<Rendition | null>(null);
@@ -71,6 +72,14 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
   useEffect(() => {
     isChatOpenRef.current = isChatOpen;
   }, [isChatOpen]);
+
+  // Remove epub.js highlight annotation when selection is cleared externally
+  useEffect(() => {
+    if (selection === null && highlightCfiRef.current && renditionRef.current) {
+      try { renditionRef.current.annotations.remove(highlightCfiRef.current, 'highlight'); } catch (e) { /* ignore */ }
+      highlightCfiRef.current = null;
+    }
+  }, [selection]);
 
   // Ref to call showIndicatorTemporarily from event handlers
   const showIndicatorRef = useRef<(() => void) | null>(null);
@@ -129,6 +138,9 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
   // This flag tells the relocated handler to apply the last-page transform after section loads
   const goToLastPageOfSectionRef = useRef<boolean>(false);
 
+  // Track the cfiRange of the current highlight annotation so we can remove it later
+  const highlightCfiRef = useRef<string | null>(null);
+
   // Apply CSS transform to show the correct page within a section
   const applyPageTransform = useCallback((pageNum: number) => {
     const rendition = renditionRef.current;
@@ -149,7 +161,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
     if (!body) return;
 
     // Calculate the offset - each page is containerWidth wide
-    const containerWidth = containerWidthRef.current || manager.container?.clientWidth || 440;
+    const containerWidth = containerWidthRef.current || manager?.container?.clientWidth || window.innerWidth;
     const offset = (pageNum - 1) * containerWidth;
 
     console.log(`[TRANSFORM] Applying transform for page ${pageNum}, offset=${offset}px, containerWidth=${containerWidth}`);
@@ -166,10 +178,22 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
     sectionPageRef.current = pageNum;
   }, []);
 
+  // Helper to clear the active highlight annotation and reset selection state
+  const clearHighlight = useCallback(() => {
+    if (highlightCfiRef.current && renditionRef.current) {
+      try { renditionRef.current.annotations.remove(highlightCfiRef.current, 'highlight'); } catch (e) { /* ignore */ }
+      highlightCfiRef.current = null;
+    }
+    onTextSelected(null);
+  }, [onTextSelected]);
+
   // Navigate to next page within section, or next section if at end
   const goToNextPage = useCallback(() => {
     const rendition = renditionRef.current;
     if (!rendition) return;
+
+    // Clear any active highlight on page turn
+    clearHighlight();
 
     const currentPage = sectionPageRef.current;
     const totalPages = sectionTotalPagesRef.current;
@@ -194,12 +218,15 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
       console.log(`[TRANSFORM_NAV ${timestamp}] At end of section, calling rendition.next()`);
       rendition.next();
     }
-  }, [applyPageTransform, updatePageNonBlocking]);
+  }, [applyPageTransform, clearHighlight, updatePageNonBlocking]);
 
   // Navigate to previous page within section, or previous section if at start
   const goToPrevPage = useCallback(() => {
     const rendition = renditionRef.current;
     if (!rendition) return;
+
+    // Clear any active highlight on page turn
+    clearHighlight();
 
     const currentPage = sectionPageRef.current;
     const timestamp = new Date().toISOString();
@@ -224,7 +251,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
       goToLastPageOfSectionRef.current = true;
       rendition.prev();
     }
-  }, [applyPageTransform, updatePageNonBlocking]);
+  }, [applyPageTransform, clearHighlight, updatePageNonBlocking]);
 
   useEffect(() => {
     const initTimestamp = new Date().toISOString();
@@ -630,7 +657,7 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
                       const view = views._views[0];
                       const doc = view?.contents?.document;
                       if (doc?.documentElement) {
-                        const containerWidth = containerWidthRef.current || manager.container?.clientWidth || 440;
+                        const containerWidth = containerWidthRef.current || manager?.container?.clientWidth || window.innerWidth;
                         const offset = (lastPage - 1) * containerWidth;
                         doc.documentElement.style.transform = `translateX(-${offset}px)`;
                         doc.documentElement.style.transition = 'transform 0.2s ease-out';
@@ -777,7 +804,12 @@ export const Reader: React.FC<ReaderProps> = ({ file, onTextSelected, fontSize, 
                 });
             }
         });
+        // Remove previous highlight before adding new one
+        if (highlightCfiRef.current) {
+          try { rendition.annotations.remove(highlightCfiRef.current, 'highlight'); } catch (e) { /* ignore */ }
+        }
         rendition.annotations.add('highlight', cfiRange, {}, null, 'hl');
+        highlightCfiRef.current = cfiRange;
     });
     
     // Handle tap navigation inside the epub iframe (like iBooks)

@@ -19,6 +19,7 @@ interface ProfileProps {
 }
 
 export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSignOut, onDeleteAccount }) => {
+    console.log(`[PROFILE COMPONENT] Mounted/rendered with user:`, user);
     const [isUpgrading, setIsUpgrading] = useState(false);
     const [isRestoring, setIsRestoring] = useState(false);
     const [purchaseError, setPurchaseError] = useState<string | null>(null);
@@ -120,7 +121,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onBack, onUpgrade, onSig
     return (
         <div className="h-screen bg-stone-50 flex flex-col overflow-hidden">
             {/* Header */}
-            <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4 flex-shrink-0">
+            <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4 flex-shrink-0" style={{ paddingTop: 'max(16px, env(safe-area-inset-top, 16px))' }}>
                 <button
                     onClick={onBack}
                     className="p-2 -ml-2 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors"

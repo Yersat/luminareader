@@ -13,11 +13,13 @@ import { bookService, bookmarkService, storageService, userService } from './src
 import { migrateUserData, isMigrationCompleted } from './src/utils/dataMigration';
 import { initializeIAP, setUserId, checkProStatus, logOutUser } from './services/iapService';
 
-type ViewState = 'onboarding' | 'auth' | 'library' | 'reader' | 'profile';
+type ViewState = 'loading' | 'onboarding' | 'auth' | 'library' | 'reader' | 'profile';
 type Theme = 'light' | 'sepia' | 'dark';
 
+const ONBOARDING_KEY = 'lumina_onboarding_completed';
+
 function App() {
-  const [view, setView] = useState<ViewState>('onboarding');
+  const [view, setView] = useState<ViewState>('loading');
   const [library, setLibrary] = useState<BookData[]>([]);
   const [activeBookId, setActiveBookId] = useState<string | null>(null);
   const [selection, setSelection] = useState<SelectionData | null>(null);
@@ -25,7 +27,7 @@ function App() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const { t } = useLanguage();
-  const { user: authUser, logOut: authLogOut, deleteAccount: authDeleteAccount } = useAuth();
+  const { user: authUser, loading: authLoading, logOut: authLogOut, deleteAccount: authDeleteAccount } = useAuth();
   
   // Reader Settings
   const [fontSize, setFontSize] = useState(100);
@@ -39,6 +41,56 @@ function App() {
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false); // Track chat widget open state
+
+  // Resolve initial view once auth state is known
+  useEffect(() => {
+    if (authLoading) return;
+    // Only redirect when still on the loading screen
+    if (view !== 'loading') return;
+
+    const onboardingDone = localStorage.getItem(ONBOARDING_KEY) === 'true';
+    if (!onboardingDone) {
+      setView('onboarding');
+    } else if (authUser) {
+      setView('library');
+    } else {
+      setView('auth');
+    }
+  }, [authLoading, authUser]);
+
+  // Restore user profile from Firestore on app relaunch
+  useEffect(() => {
+    console.log(`[RESTORE_PROFILE] Effect triggered: authUser=${authUser?.uid || 'null'}, user=${user ? 'exists' : 'null'}`);
+    const restoreUserProfile = async () => {
+      if (authUser && !user) {
+        console.log(`[RESTORE_PROFILE] Fetching profile from Firestore for uid=${authUser.uid}`);
+        try {
+          const firestoreProfile = await userService.getProfile(authUser.uid);
+          console.log(`[RESTORE_PROFILE] Firestore response:`, firestoreProfile);
+          const restoredUser: UserProfile = {
+            name: firestoreProfile?.displayName || authUser.displayName || authUser.email?.split('@')[0] || 'User',
+            email: authUser.email || '',
+            isPro: firestoreProfile?.isPro || false,
+            joinDate: firestoreProfile?.joinDate?.toMillis?.() || Date.now(),
+          };
+          console.log(`[RESTORE_PROFILE] Setting user:`, restoredUser);
+          setUser(restoredUser);
+        } catch (error) {
+          console.error(`[RESTORE_PROFILE] ERROR:`, error);
+          // Set a minimal user so Profile is still accessible
+          const fallbackUser: UserProfile = {
+            name: authUser.displayName || authUser.email?.split('@')[0] || 'User',
+            email: authUser.email || '',
+            isPro: false,
+            joinDate: Date.now(),
+          };
+          console.log(`[RESTORE_PROFILE] Setting fallback user:`, fallbackUser);
+          setUser(fallbackUser);
+        }
+      }
+    };
+    restoreUserProfile();
+  }, [authUser, user]);
 
   // Load user data from Firebase when authenticated
   useEffect(() => {
@@ -358,6 +410,7 @@ function App() {
   };
 
   const navigateToProfile = () => {
+      console.log(`[NAV] navigateToProfile called, current user=${user ? JSON.stringify({name: user.name, email: user.email}) : 'null'}`);
       setView('profile');
   };
 
@@ -442,31 +495,58 @@ function App() {
   const isCurrentPageBookmarked = currentBookBookmarks.some(b => b.cfi === currentCfi);
 
   // --- VIEWS ---
+  console.log(`[APP RENDER] view="${view}", user=${user ? JSON.stringify({name: user.name, email: user.email, isPro: user.isPro}) : 'null'}, authUser=${authUser ? authUser.uid : 'null'}, authLoading=${authLoading}`);
+
+  if (view === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-14 h-14 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-md">
+            <Icons.Book className="text-white" size={28} />
+          </div>
+          <div className="w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'onboarding') {
-    return <Onboarding onComplete={() => setView('auth')} />;
+    return <Onboarding onComplete={() => {
+      localStorage.setItem(ONBOARDING_KEY, 'true');
+      setView('auth');
+    }} />;
   }
 
   if (view === 'auth') {
     return <Auth onComplete={handleAuthComplete} />;
   }
 
-  if (view === 'profile' && user) {
+  if (view === 'profile') {
+    console.log(`[PROFILE VIEW] Rendering profile view, user=${user ? JSON.stringify(user) : 'null'}`);
+    if (!user) {
+      console.log(`[PROFILE VIEW] User is null — showing spinner`);
+      // User profile still loading from Firestore — show spinner
       return (
-          <Profile
-            user={user}
-            onBack={() => setView('library')}
-            onUpgrade={handleUpgrade}
-            onSignOut={handleSignOut}
-            onDeleteAccount={authDeleteAccount}
-          />
+        <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600" />
+        </div>
       );
+    }
+    return (
+      <Profile
+        user={user}
+        onBack={() => setView('library')}
+        onUpgrade={handleUpgrade}
+        onSignOut={handleSignOut}
+        onDeleteAccount={authDeleteAccount}
+      />
+    );
   }
 
   if (view === 'library') {
     return (
       <div className="min-h-screen bg-stone-50 text-gray-800 font-sans">
-        <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-stone-200 px-6 py-4 flex items-center justify-between">
+        <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-stone-200 px-6 py-4 flex items-center justify-between" style={{ paddingTop: 'max(16px, env(safe-area-inset-top, 16px))' }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-indigo-200 shadow-md">
                 <Icons.Book className="text-white" size={20} />
@@ -587,13 +667,13 @@ function App() {
   // Reader View
   if (view === 'reader' && activeBook) {
     return (
-      <div className={`h-screen w-full flex flex-col overflow-hidden relative ${theme === 'dark' ? 'bg-[#202020]' : 'bg-stone-50'}`}>
+      <div className={`h-screen w-full flex flex-col overflow-hidden relative ${theme === 'dark' ? 'bg-[#202020]' : 'bg-stone-50'}`} style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         {/* App Header */}
-        <header className={`flex-none h-16 px-4 sm:px-6 border-b z-20 shadow-sm flex items-center justify-between transition-colors ${
-            theme === 'dark' 
-            ? 'bg-[#1a1a1a] border-gray-800 text-gray-200' 
+        <header className={`flex-none min-h-[4rem] px-4 sm:px-6 border-b z-20 shadow-sm flex items-center justify-between transition-colors ${
+            theme === 'dark'
+            ? 'bg-[#1a1a1a] border-gray-800 text-gray-200'
             : 'bg-white border-stone-200 text-gray-800'
-        }`}>
+        }`} style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="flex items-center gap-3 overflow-hidden">
               <button 
                 onClick={handleBackToLibrary}
