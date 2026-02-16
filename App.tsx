@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import ePub from 'epubjs';
 import { Reader } from './components/Reader';
 import { ChatWidget } from './components/ChatWidget';
@@ -19,6 +19,7 @@ type Theme = 'light' | 'sepia' | 'dark';
 const ONBOARDING_KEY = 'lumina_onboarding_completed';
 
 function App() {
+  const didLogBuildRef = useRef(false);
   const [view, setView] = useState<ViewState>('loading');
   const [library, setLibrary] = useState<BookData[]>([]);
   const [activeBookId, setActiveBookId] = useState<string | null>(null);
@@ -41,6 +42,19 @@ function App() {
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false); // Track chat widget open state
+
+  useEffect(() => {
+    if (didLogBuildRef.current) {
+      return;
+    }
+    didLogBuildRef.current = true;
+
+    const buildId = import.meta.env.VITE_BUILD_ID || 'unknown';
+    const buildSha = import.meta.env.VITE_BUILD_SHA || 'unknown';
+    const buildTimestamp = import.meta.env.VITE_BUILD_TIMESTAMP || 'unknown';
+
+    console.log(`[BUILD] App boot buildId=${buildId} sha=${buildSha} timestamp=${buildTimestamp}`);
+  }, []);
 
   // Resolve initial view once auth state is known
   useEffect(() => {
@@ -495,7 +509,6 @@ function App() {
   const isCurrentPageBookmarked = currentBookBookmarks.some(b => b.cfi === currentCfi);
 
   // --- VIEWS ---
-  console.log(`[APP RENDER] view="${view}", user=${user ? JSON.stringify({name: user.name, email: user.email, isPro: user.isPro}) : 'null'}, authUser=${authUser ? authUser.uid : 'null'}, authLoading=${authLoading}`);
 
   if (view === 'loading') {
     return (
@@ -667,7 +680,7 @@ function App() {
   // Reader View
   if (view === 'reader' && activeBook) {
     return (
-      <div className={`h-screen w-full flex flex-col overflow-hidden relative ${theme === 'dark' ? 'bg-[#202020]' : 'bg-stone-50'}`} style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className={`h-[100dvh] min-h-[100vh] w-full flex flex-col overflow-hidden relative ${theme === 'dark' ? 'bg-[#202020]' : 'bg-stone-50'}`} style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
         {/* App Header */}
         <header className={`flex-none min-h-[4rem] px-4 sm:px-6 border-b z-20 shadow-sm flex items-center justify-between transition-colors ${
             theme === 'dark'

@@ -11,8 +11,11 @@
     "cap:build": "npm run build && npx cap sync",
     "cap:ios": "npx cap open ios",
     "cap:android": "npx cap open android",
+    "check:native-assets": "bash ./scripts/verify-native-assets.sh",
     "ios": "npm run build && npx cap sync ios && npx cap open ios",
-    "android": "npm run build && npx cap sync android && npx cap open android"
+    "android": "npm run build && npx cap sync android && npx cap open android",
+    "ios:verify": "npm run build && npx cap sync ios && npm run check:native-assets && npx cap open ios",
+    "android:verify": "npm run build && npx cap sync android && npm run check:native-assets && npx cap open android"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^7.1.0",
