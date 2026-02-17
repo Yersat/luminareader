@@ -6,6 +6,17 @@
 
 import { Timestamp } from 'firebase/firestore';
 
+export type ReaderEngine = 'native' | 'ios-deterministic';
+
+export interface LastReadSnapshot {
+  engine: ReaderEngine;
+  sectionIndex: number | null;
+  sectionHref: string | null;
+  sectionPage: number;
+  sectionTotalPages: number;
+  timestamp: number;
+}
+
 /**
  * Book stored in Firestore
  */
@@ -27,6 +38,8 @@ export interface Book {
   lastReadCfi?: string;
   /** Reading progress as a percentage (0-100) */
   readingProgress?: number;
+  /** iOS deterministic fallback restore snapshot */
+  lastReadSnapshot?: LastReadSnapshot;
 }
 
 /**
@@ -54,4 +67,3 @@ export interface UserProfile {
   theme: string;
   fontSize: number;
 }
-

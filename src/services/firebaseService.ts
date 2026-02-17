@@ -28,7 +28,7 @@ import {
   deleteObject 
 } from 'firebase/storage';
 import { db, storage, auth } from '../config/firebase';
-import type { Book, Bookmark } from '../types';
+import type { Book, Bookmark, LastReadSnapshot } from '../types';
 
 /**
  * User Profile Operations
@@ -140,13 +140,24 @@ export const bookService = {
   /**
    * Save reading progress (position and percentage)
    */
-  async saveReadingProgress(bookId: string, lastReadCfi: string, readingProgress: number) {
+  async saveReadingProgress(
+    bookId: string,
+    lastReadCfi: string,
+    readingProgress: number,
+    lastReadSnapshot?: LastReadSnapshot,
+  ) {
     const docRef = doc(db, 'books', bookId);
-    await updateDoc(docRef, {
+    const payload: Record<string, unknown> = {
       lastReadCfi,
       readingProgress,
       lastOpened: Timestamp.now()
-    });
+    };
+
+    if (lastReadSnapshot) {
+      payload.lastReadSnapshot = lastReadSnapshot;
+    }
+
+    await updateDoc(docRef, payload);
   }
 };
 
@@ -234,4 +245,3 @@ export const storageService = {
     await deleteObject(storageRef);
   }
 };
-

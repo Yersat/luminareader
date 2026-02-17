@@ -6,7 +6,7 @@ import { Onboarding } from './components/Onboarding';
 import { Auth } from './components/Auth';
 import { Profile } from './components/Profile';
 import { Icons } from './components/ui/Icons';
-import { SelectionData, BookData, UserProfile, Bookmark } from './types';
+import { SelectionData, BookData, UserProfile, Bookmark, LastReadSnapshot } from './types';
 import { useLanguage } from './contexts/LanguageContext';
 import { useAuth } from './src/contexts/AuthContext';
 import { bookService, bookmarkService, storageService, userService } from './src/services/firebaseService';
@@ -38,7 +38,9 @@ function App() {
   const [bookmarks, setBookmarks] = useState<Record<string, Bookmark[]>>({});
   const [currentCfi, setCurrentCfi] = useState<string>('');
   const [currentProgress, setCurrentProgress] = useState<number>(0);
+  const [currentRestoreSnapshot, setCurrentRestoreSnapshot] = useState<LastReadSnapshot | null>(null);
   const [targetLocation, setTargetLocation] = useState<string | null>(null);
+  const [targetRestoreSnapshot, setTargetRestoreSnapshot] = useState<LastReadSnapshot | null>(null);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false); // Track chat widget open state
@@ -170,7 +172,8 @@ function App() {
         coverColor: book.coverColor || getRandomColor(),
         addedAt: book.uploadedAt?.toMillis() || Date.now(),
         lastReadCfi: book.lastReadCfi,
-        readingProgress: book.readingProgress
+        readingProgress: book.readingProgress,
+        lastReadSnapshot: book.lastReadSnapshot,
       }));
 
       setLibrary(bookData);
@@ -310,10 +313,19 @@ function App() {
     // If we already have the file in memory (fresh upload in this session),
     // we can open the reader immediately.
     if (book.file) {
+      console.log('[RESUME_TARGET]', {
+        bookId,
+        cfi: book.lastReadCfi || null,
+        snapshot: book.lastReadSnapshot || null,
+      });
       setActiveBookId(bookId);
       setSelection(null);
       // Restore last reading position if available
       setTargetLocation(book.lastReadCfi || null);
+      setTargetRestoreSnapshot(book.lastReadSnapshot || null);
+      setCurrentCfi(book.lastReadCfi || '');
+      setCurrentProgress(book.readingProgress || 0);
+      setCurrentRestoreSnapshot(book.lastReadSnapshot || null);
       setShowSettings(false);
       setView('reader');
       return;
@@ -339,10 +351,19 @@ function App() {
       // again in this session.
       setLibrary(prev => prev.map(b => b.id === bookId ? { ...b, file: arrayBuffer } : b));
 
+      console.log('[RESUME_TARGET]', {
+        bookId,
+        cfi: book.lastReadCfi || null,
+        snapshot: book.lastReadSnapshot || null,
+      });
       setActiveBookId(bookId);
       setSelection(null);
       // Restore last reading position if available
       setTargetLocation(book.lastReadCfi || null);
+      setTargetRestoreSnapshot(book.lastReadSnapshot || null);
+      setCurrentCfi(book.lastReadCfi || '');
+      setCurrentProgress(book.readingProgress || 0);
+      setCurrentRestoreSnapshot(book.lastReadSnapshot || null);
       setShowSettings(false);
       setView('reader');
     } catch (error) {
@@ -353,26 +374,52 @@ function App() {
 
   const handleBackToLibrary = async () => {
     // Save reading progress before leaving
-    if (activeBookId && currentCfi) {
-      try {
-        await bookService.saveReadingProgress(activeBookId, currentCfi, currentProgress);
-        console.log('Reading progress saved:', { bookId: activeBookId, cfi: currentCfi, progress: currentProgress });
+    if (activeBookId) {
+      const activeBook = library.find(b => b.id === activeBookId);
+      const cfiToSave = currentCfi || activeBook?.lastReadCfi || '';
+      const progressToSave = Number.isFinite(currentProgress)
+        ? currentProgress
+        : (activeBook?.readingProgress || 0);
+      const snapshotToSave = currentRestoreSnapshot || activeBook?.lastReadSnapshot;
 
-        // Update local state to reflect the saved progress
+      // Keep local state coherent even if remote save fails.
+      if (cfiToSave || snapshotToSave) {
         setLibrary(prev => prev.map(b =>
           b.id === activeBookId
-            ? { ...b, lastReadCfi: currentCfi, readingProgress: currentProgress }
+            ? {
+              ...b,
+              ...(cfiToSave ? { lastReadCfi: cfiToSave } : {}),
+              readingProgress: progressToSave,
+              ...(snapshotToSave ? { lastReadSnapshot: snapshotToSave } : {}),
+            }
             : b
         ));
-      } catch (error) {
-        console.error('Error saving reading progress:', error);
-        // Don't block navigation on error - just log it
+      }
+
+      if (cfiToSave) {
+        try {
+          await bookService.saveReadingProgress(activeBookId, cfiToSave, progressToSave, snapshotToSave);
+          console.log('Reading progress saved:', {
+            bookId: activeBookId,
+            cfi: cfiToSave,
+            progress: progressToSave,
+            snapshot: snapshotToSave || null,
+          });
+        } catch (error) {
+          console.error('Error saving reading progress:', error);
+          // Don't block navigation on error - local state already updated.
+        }
       }
     }
 
     setView('library');
     setActiveBookId(null);
     setSelection(null);
+    setCurrentCfi('');
+    setCurrentProgress(0);
+    setCurrentRestoreSnapshot(null);
+    setTargetLocation(null);
+    setTargetRestoreSnapshot(null);
     setShowBookmarks(false);
     setShowSettings(false);
   };
@@ -428,10 +475,14 @@ function App() {
       setView('profile');
   };
 
-  const handleLocationChange = (cfi: string, progress: number) => {
+  const handleLocationChange = (cfi: string, progress: number, snapshot?: LastReadSnapshot) => {
       setCurrentCfi(cfi);
       setCurrentProgress(progress);
+      if (snapshot) {
+        setCurrentRestoreSnapshot(snapshot);
+      }
       setTargetLocation(null); // Clear target once reached to avoid loops
+      setTargetRestoreSnapshot(null);
   };
 
   // Font size handlers
@@ -501,6 +552,7 @@ function App() {
 
   const goToBookmark = (cfi: string) => {
       setTargetLocation(cfi);
+      setTargetRestoreSnapshot(null);
       setShowBookmarks(false);
   };
 
@@ -827,6 +879,7 @@ function App() {
             fontSize={fontSize}
             theme={theme}
             location={targetLocation}
+            restoreSnapshot={targetRestoreSnapshot}
             onLocationChange={handleLocationChange}
             isChatOpen={isChatOpen}
             selection={selection}

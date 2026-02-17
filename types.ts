@@ -21,6 +21,17 @@ export interface ChatContext {
   selection: SelectionData | null;
 }
 
+export type ReaderEngine = 'native' | 'ios-deterministic';
+
+export interface LastReadSnapshot {
+  engine: ReaderEngine;
+  sectionIndex: number | null;
+  sectionHref: string | null;
+  sectionPage: number;
+  sectionTotalPages: number;
+  timestamp: number;
+}
+
 export interface BookData {
   id: string;
   title: string;
@@ -40,6 +51,8 @@ export interface BookData {
   lastReadCfi?: string;
   /** Reading progress as a percentage (0-100) */
   readingProgress?: number;
+  /** iOS deterministic fallback restore snapshot */
+  lastReadSnapshot?: LastReadSnapshot;
 }
 
 export interface UserProfile {

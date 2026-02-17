@@ -14,6 +14,7 @@ import {
   applySectionPage,
   captureVisibleCfi,
   measureSectionGeometry,
+  type CfiCaptureQuality,
   type EpubContentsLike,
 } from './reader/iosDeterministicPaging';
 
@@ -64,6 +65,7 @@ p, span, div, h1, h2, h3, h4, h5, h6, a, li, td, th, blockquote {
 `;
 
 const NAVIGATION_RECOVERY_TIMEOUT_MS = 3500;
+const DEV = import.meta.env.DEV;
 
 interface ReaderProps {
   file: File | ArrayBuffer | null;
@@ -71,9 +73,19 @@ interface ReaderProps {
   fontSize: number;
   theme: 'light' | 'sepia' | 'dark';
   location?: string | null;
-  onLocationChange?: (cfi: string, progress: number) => void;
+  restoreSnapshot?: ReaderRestoreSnapshot | null;
+  onLocationChange?: (cfi: string, progress: number, snapshot?: ReaderRestoreSnapshot) => void;
   isChatOpen?: boolean;
   selection?: SelectionData | null;
+}
+
+export interface ReaderRestoreSnapshot {
+  engine: ReaderEngineMode;
+  sectionIndex: number | null;
+  sectionHref: string | null;
+  sectionPage: number;
+  sectionTotalPages: number;
+  timestamp: number;
 }
 
 interface RelocationSnapshot {
@@ -101,6 +113,30 @@ const normalizeNumber = (value: unknown): number | null => {
     }
   }
   return null;
+};
+
+const normalizeRestoreSnapshot = (
+  snapshot: ReaderRestoreSnapshot | null | undefined,
+): ReaderRestoreSnapshot | null => {
+  if (!snapshot) {
+    return null;
+  }
+
+  const sectionPage = normalizeNumber(snapshot.sectionPage);
+  const sectionTotalPages = normalizeNumber(snapshot.sectionTotalPages);
+
+  if (sectionPage === null || sectionTotalPages === null) {
+    return null;
+  }
+
+  return {
+    engine: snapshot.engine === 'ios-deterministic' ? 'ios-deterministic' : 'native',
+    sectionIndex: normalizeNumber(snapshot.sectionIndex),
+    sectionHref: typeof snapshot.sectionHref === 'string' ? snapshot.sectionHref : null,
+    sectionPage: Math.max(1, Math.floor(sectionPage)),
+    sectionTotalPages: Math.max(1, Math.floor(sectionTotalPages)),
+    timestamp: normalizeNumber(snapshot.timestamp) ?? Date.now(),
+  };
 };
 
 const getReaderEngineMode = (): ReaderEngineMode => {
@@ -197,6 +233,7 @@ export const Reader: React.FC<ReaderProps> = ({
   fontSize,
   theme,
   location,
+  restoreSnapshot,
   onLocationChange,
   isChatOpen = false,
   selection,
@@ -228,6 +265,7 @@ export const Reader: React.FC<ReaderProps> = ({
   const currentLocationRef = useRef(currentLocation);
   const fontSizeRef = useRef(fontSize);
   const themeRef = useRef(theme);
+  const isReadyRef = useRef(isReady);
   const onLocationChangeRef = useRef(onLocationChange);
 
   const lastRelocationRef = useRef<RelocationSnapshot | null>(null);
@@ -241,6 +279,13 @@ export const Reader: React.FC<ReaderProps> = ({
   const currentSectionHrefRef = useRef<string | null>(null);
   const pendingBoundaryDirectionRef = useRef<NavigationDirection | null>(null);
   const pendingReflowRelocationRef = useRef<boolean>(false);
+  const pendingInitialRestoreSnapshotRef = useRef<ReaderRestoreSnapshot | null>(null);
+  const initialRestoreSectionJumpAttemptedRef = useRef<boolean>(false);
+  const initialRestoreResultLoggedRef = useRef<boolean>(false);
+  const initialSnapshotRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialSnapshotRetryAttemptRef = useRef<number>(0);
+  const lastStableCfiRef = useRef<string>('');
+  const lastCaptureQualityRef = useRef<CfiCaptureQuality | null>(null);
 
   useEffect(() => {
     isChatOpenRef.current = isChatOpen;
@@ -262,6 +307,10 @@ export const Reader: React.FC<ReaderProps> = ({
     onLocationChangeRef.current = onLocationChange;
   }, [onLocationChange]);
 
+  useEffect(() => {
+    isReadyRef.current = isReady;
+  }, [isReady]);
+
   const showIndicatorTemporarily = useCallback(() => {
     setShowPageIndicator(true);
     if (hideTimerRef.current) {
@@ -270,6 +319,14 @@ export const Reader: React.FC<ReaderProps> = ({
     hideTimerRef.current = setTimeout(() => {
       setShowPageIndicator(false);
     }, 2000);
+  }, []);
+
+  const clearInitialSnapshotRetry = useCallback(() => {
+    if (initialSnapshotRetryTimerRef.current) {
+      clearTimeout(initialSnapshotRetryTimerRef.current);
+      initialSnapshotRetryTimerRef.current = null;
+    }
+    initialSnapshotRetryAttemptRef.current = 0;
   }, []);
 
   const unlockNavigation = useCallback(() => {
@@ -292,8 +349,14 @@ export const Reader: React.FC<ReaderProps> = ({
       navigationUnlockTimerRef.current = null;
       pendingBoundaryDirectionRef.current = null;
       pendingReflowRelocationRef.current = false;
+      pendingInitialRestoreSnapshotRef.current = null;
+      initialRestoreSectionJumpAttemptedRef.current = false;
+      initialRestoreResultLoggedRef.current = false;
+      clearInitialSnapshotRetry();
+      lastStableCfiRef.current = '';
+      lastCaptureQualityRef.current = null;
     }, NAVIGATION_RECOVERY_TIMEOUT_MS);
-  }, []);
+  }, [clearInitialSnapshotRetry]);
 
   const clearHighlight = useCallback(() => {
     if (highlightCfiRef.current && renditionRef.current) {
@@ -307,6 +370,27 @@ export const Reader: React.FC<ReaderProps> = ({
 
     onTextSelected(null);
   }, [onTextSelected]);
+
+  const buildRestoreSnapshot = useCallback((snapshot: RelocationSnapshot): ReaderRestoreSnapshot => {
+    const sectionPage = Math.max(1, snapshot.displayedPage ?? sectionPageRef.current);
+    const sectionTotalPages = Math.max(1, snapshot.displayedTotal ?? sectionTotalPagesRef.current);
+
+    return {
+      engine: engineModeRef.current,
+      sectionIndex: snapshot.sectionIndex,
+      sectionHref: snapshot.sectionHref,
+      sectionPage,
+      sectionTotalPages,
+      timestamp: Date.now(),
+    };
+  }, []);
+
+  const logRestoreResult = useCallback((mode: 'cfi' | 'snapshot' | 'cover') => {
+    if (DEV && !initialRestoreResultLoggedRef.current) {
+      initialRestoreResultLoggedRef.current = true;
+      console.log(`[RESTORE_RESULT] mode=${mode}`);
+    }
+  }, []);
 
   const applySnapshotToUi = useCallback((snapshot: RelocationSnapshot, map: VisualPageMap | null): number => {
     const resolvedDisplayedPage = isIosDeterministic
@@ -349,13 +433,17 @@ export const Reader: React.FC<ReaderProps> = ({
   }, [isIosDeterministic]);
 
   const commitSnapshot = useCallback((snapshot: RelocationSnapshot) => {
+    if (snapshot.cfi) {
+      lastStableCfiRef.current = snapshot.cfi;
+    }
+
     setCurrentLocation(snapshot.cfi);
     currentLocationRef.current = snapshot.cfi;
     lastRelocationRef.current = snapshot;
 
     const progress = applySnapshotToUi(snapshot, visualPageMapRef.current);
-    onLocationChangeRef.current?.(snapshot.cfi, progress);
-  }, [applySnapshotToUi]);
+    onLocationChangeRef.current?.(snapshot.cfi, progress, buildRestoreSnapshot(snapshot));
+  }, [applySnapshotToUi, buildRestoreSnapshot]);
 
   const buildIosSnapshotForPage = useCallback((
     baseSnapshot: RelocationSnapshot,
@@ -390,11 +478,17 @@ export const Reader: React.FC<ReaderProps> = ({
 
     applySectionPage(contents, boundedPage, pageWidth);
 
-    const visibleCfi = captureVisibleCfi(contents, boundedPage, pageWidth);
+    const capture = captureVisibleCfi(contents, boundedPage, pageWidth);
+    const cfi = capture.cfi || lastStableCfiRef.current || baseSnapshot.cfi;
+
+    if (DEV && capture.quality !== lastCaptureQualityRef.current) {
+      lastCaptureQualityRef.current = capture.quality;
+      console.log(`[CFI_CAPTURE_QUALITY] mode=${capture.quality}`);
+    }
 
     return {
       ...baseSnapshot,
-      cfi: visibleCfi || baseSnapshot.cfi,
+      cfi,
       displayedPage: boundedPage,
       displayedTotal: totalPages,
     };
@@ -440,7 +534,7 @@ export const Reader: React.FC<ReaderProps> = ({
       const snapshot = lastRelocationRef.current;
       if (snapshot) {
         const progress = applySnapshotToUi(snapshot, result.map);
-        onLocationChangeRef.current?.(snapshot.cfi, progress);
+        onLocationChangeRef.current?.(snapshot.cfi, progress, buildRestoreSnapshot(snapshot));
       } else {
         setCurrentPage(1);
       }
@@ -453,7 +547,7 @@ export const Reader: React.FC<ReaderProps> = ({
       visualPageMapRef.current = null;
       setIsPageMapReady(false);
     }
-  }, [applySnapshotToUi, file]);
+  }, [applySnapshotToUi, buildRestoreSnapshot, file]);
 
   const rebuildVisualPageMapRef = useRef(rebuildVisualPageMap);
   useEffect(() => {
@@ -475,6 +569,10 @@ export const Reader: React.FC<ReaderProps> = ({
     const viewer = viewerRef.current;
 
     if (!rendition || !viewer) {
+      return;
+    }
+
+    if ((cause === 'resize' || cause === 'orientation') && !isReadyRef.current) {
       return;
     }
 
@@ -525,6 +623,7 @@ export const Reader: React.FC<ReaderProps> = ({
     );
 
     setIsReady(false);
+    isReadyRef.current = false;
     setCurrentLocation('');
     currentLocationRef.current = '';
     setCurrentPage(1);
@@ -543,6 +642,18 @@ export const Reader: React.FC<ReaderProps> = ({
     currentSectionHrefRef.current = null;
     pendingBoundaryDirectionRef.current = null;
     pendingReflowRelocationRef.current = false;
+    pendingInitialRestoreSnapshotRef.current = isIosDeterministic
+      ? normalizeRestoreSnapshot(restoreSnapshot)
+      : null;
+    initialRestoreSectionJumpAttemptedRef.current = false;
+    initialRestoreResultLoggedRef.current = false;
+    clearInitialSnapshotRetry();
+    lastStableCfiRef.current = location || '';
+    lastCaptureQualityRef.current = null;
+
+    if (DEV) {
+      console.log(`[RESTORE_ATTEMPT] cfi=${location || 'none'} snapshot=${JSON.stringify(pendingInitialRestoreSnapshotRef.current)}`);
+    }
 
     if (pageMapRebuildTimerRef.current) {
       clearTimeout(pageMapRebuildTimerRef.current);
@@ -582,13 +693,27 @@ export const Reader: React.FC<ReaderProps> = ({
 
     const handleRendered = () => {
       setIsReady(true);
+      isReadyRef.current = true;
       rendition.themes.fontSize(`${fontSizeRef.current}%`);
       rendition.themes.select(themeRef.current);
 
       if (isIosDeterministic && lastRelocationRef.current) {
-        const refreshed = buildIosSnapshotForPage(lastRelocationRef.current, sectionPageRef.current);
+        const pendingInitialRestore = pendingInitialRestoreSnapshotRef.current;
+        const targetPage = pendingInitialRestore
+          ? pendingInitialRestore.sectionPage
+          : sectionPageRef.current;
+
+        const refreshed = buildIosSnapshotForPage(lastRelocationRef.current, targetPage);
         if (refreshed) {
           commitSnapshot(refreshed);
+
+          if (pendingInitialRestore) {
+            pendingInitialRestoreSnapshotRef.current = null;
+            clearInitialSnapshotRetry();
+            logRestoreResult('snapshot');
+            showIndicatorTemporarily();
+            unlockNavigation();
+          }
         }
       }
     };
@@ -627,10 +752,12 @@ export const Reader: React.FC<ReaderProps> = ({
         if (rebuiltSnapshot) {
           effectiveSnapshot = rebuiltSnapshot;
         } else {
+          const stableCfi = lastStableCfiRef.current || snapshot.cfi;
           sectionPageRef.current = Math.max(1, snapshot.displayedPage || sectionPageRef.current);
           sectionTotalPagesRef.current = Math.max(1, snapshot.displayedTotal || sectionTotalPagesRef.current);
           effectiveSnapshot = {
             ...snapshot,
+            cfi: stableCfi,
             displayedPage: sectionPageRef.current,
             displayedTotal: sectionTotalPagesRef.current,
           };
@@ -638,11 +765,107 @@ export const Reader: React.FC<ReaderProps> = ({
 
         currentSectionIndexRef.current = snapshot.sectionIndex;
         currentSectionHrefRef.current = snapshot.sectionHref;
+
+        const pendingInitialRestore = pendingInitialRestoreSnapshotRef.current;
+        if (pendingInitialRestore) {
+          const sectionMatches = (snapshot.sectionIndex !== null && pendingInitialRestore.sectionIndex !== null)
+            ? snapshot.sectionIndex === pendingInitialRestore.sectionIndex
+            : snapshot.sectionHref === pendingInitialRestore.sectionHref;
+
+          if (!sectionMatches) {
+            clearInitialSnapshotRetry();
+            const targetSection = pendingInitialRestore.sectionHref ?? pendingInitialRestore.sectionIndex;
+
+            if (
+              targetSection !== null
+              && targetSection !== undefined
+              && !initialRestoreSectionJumpAttemptedRef.current
+              && renditionRef.current
+            ) {
+              initialRestoreSectionJumpAttemptedRef.current = true;
+              lockNavigation();
+              showIndicatorTemporarily();
+
+              void renditionRef.current.display(targetSection as any).catch((error) => {
+                console.error('Snapshot section restore failed:', error);
+                pendingInitialRestoreSnapshotRef.current = null;
+                logRestoreResult(location ? 'cfi' : 'cover');
+                unlockNavigation();
+              });
+
+              return;
+            }
+
+            pendingInitialRestoreSnapshotRef.current = null;
+            logRestoreResult(location ? 'cfi' : 'cover');
+          } else {
+            const restoredSnapshot = buildIosSnapshotForPage(effectiveSnapshot, pendingInitialRestore.sectionPage);
+            if (restoredSnapshot) {
+              clearInitialSnapshotRetry();
+              effectiveSnapshot = restoredSnapshot;
+              pendingInitialRestoreSnapshotRef.current = null;
+              logRestoreResult('snapshot');
+            } else {
+              const stableCfi = lastStableCfiRef.current || effectiveSnapshot.cfi;
+              sectionPageRef.current = Math.max(1, pendingInitialRestore.sectionPage);
+              sectionTotalPagesRef.current = Math.max(sectionTotalPagesRef.current, pendingInitialRestore.sectionTotalPages);
+              effectiveSnapshot = {
+                ...effectiveSnapshot,
+                cfi: stableCfi,
+                displayedPage: sectionPageRef.current,
+                displayedTotal: sectionTotalPagesRef.current,
+              };
+
+              clearInitialSnapshotRetry();
+              const retryPage = sectionPageRef.current;
+              const retryFallbackMode = location ? 'cfi' : 'cover';
+              const retryBaseline = { ...effectiveSnapshot };
+
+              const retryInitialSnapshotApply = () => {
+                const pending = pendingInitialRestoreSnapshotRef.current;
+                if (!pending) {
+                  clearInitialSnapshotRetry();
+                  return;
+                }
+
+                const base = lastRelocationRef.current || retryBaseline;
+                const retried = buildIosSnapshotForPage(base, retryPage);
+                if (retried) {
+                  pendingInitialRestoreSnapshotRef.current = null;
+                  clearInitialSnapshotRetry();
+                  commitSnapshot(retried);
+                  showIndicatorTemporarily();
+                  unlockNavigation();
+                  logRestoreResult('snapshot');
+                  return;
+                }
+
+                initialSnapshotRetryAttemptRef.current += 1;
+                if (initialSnapshotRetryAttemptRef.current >= 8) {
+                  pendingInitialRestoreSnapshotRef.current = null;
+                  clearInitialSnapshotRetry();
+                  logRestoreResult(retryFallbackMode);
+                  return;
+                }
+
+                initialSnapshotRetryTimerRef.current = setTimeout(retryInitialSnapshotApply, 70);
+              };
+
+              initialSnapshotRetryTimerRef.current = setTimeout(retryInitialSnapshotApply, 40);
+            }
+          }
+        } else if (!initialRestoreResultLoggedRef.current) {
+          logRestoreResult(location ? 'cfi' : 'cover');
+        }
       } else {
         sectionPageRef.current = Math.max(1, snapshot.displayedPage || 1);
         sectionTotalPagesRef.current = Math.max(1, snapshot.displayedTotal || 1);
         currentSectionIndexRef.current = snapshot.sectionIndex;
         currentSectionHrefRef.current = snapshot.sectionHref;
+
+        if (!initialRestoreResultLoggedRef.current) {
+          logRestoreResult(location ? 'cfi' : 'cover');
+        }
       }
 
       pendingBoundaryDirectionRef.current = null;
@@ -840,6 +1063,10 @@ export const Reader: React.FC<ReaderProps> = ({
 
       pendingBoundaryDirectionRef.current = null;
       pendingReflowRelocationRef.current = false;
+      pendingInitialRestoreSnapshotRef.current = null;
+      initialRestoreSectionJumpAttemptedRef.current = false;
+      initialRestoreResultLoggedRef.current = false;
+      clearInitialSnapshotRetry();
 
       unlockNavigation();
 
@@ -853,13 +1080,14 @@ export const Reader: React.FC<ReaderProps> = ({
   }, [
     applyViewportResize,
     buildIosSnapshotForPage,
+    clearInitialSnapshotRetry,
     clearHighlight,
     commitSnapshot,
     file,
     isIosDeterministic,
     lockNavigation,
+    logRestoreResult,
     onTextSelected,
-    location,
     scheduleVisualPageMapRebuild,
     showIndicatorTemporarily,
     unlockNavigation,
@@ -879,8 +1107,10 @@ export const Reader: React.FC<ReaderProps> = ({
     }
 
     renditionRef.current.themes.fontSize(`${fontSize}%`);
-    applyViewportResize('font');
-  }, [applyViewportResize, fontSize]);
+    if (isReady) {
+      applyViewportResize('font');
+    }
+  }, [applyViewportResize, fontSize, isReady]);
 
   useEffect(() => {
     if (!renditionRef.current || !location || location === currentLocationRef.current) {
@@ -910,6 +1140,9 @@ export const Reader: React.FC<ReaderProps> = ({
       }
       if (pageMapRebuildTimerRef.current) {
         clearTimeout(pageMapRebuildTimerRef.current);
+      }
+      if (initialSnapshotRetryTimerRef.current) {
+        clearTimeout(initialSnapshotRetryTimerRef.current);
       }
     };
   }, []);
