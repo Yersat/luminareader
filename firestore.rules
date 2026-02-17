@@ -2,20 +2,47 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // Helper function to check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
-    
+
     // Helper function to check if user owns the document
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
-    
-    // Users collection - users can only read/write their own data
+
+    // Helper function to check if request modifies protected Pro fields
+    // These fields can only be modified by Cloud Functions (Admin SDK)
+    function modifiesProtectedFields() {
+      let protectedFields = ['isPro', 'isLifetime', 'isAdmin', 'subscriptionType',
+                             'subscriptionExpiresAt', 'proGrantedBy', 'proGrantedAt',
+                             'proGrantReason'];
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedFields);
+    }
+
+    // Helper function to check if new user has safe initial values for protected fields
+    function hasValidInitialProFields() {
+      let data = request.resource.data;
+      return data.get('isPro', false) == false
+             && data.get('isLifetime', false) == false
+             && data.get('isAdmin', false) == false;
+    }
+
+    // Users collection - protected Pro fields can only be modified by Cloud Functions
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      // Users can read their own profile
+      allow read: if isOwner(userId);
+
+      // Users can create their profile with safe initial values only
+      allow create: if isOwner(userId) && hasValidInitialProFields();
+
+      // Users can update their profile EXCEPT protected Pro/admin fields
+      allow update: if isOwner(userId) && !modifiesProtectedFields();
+
+      // Users cannot delete their profile directly (use deleteUserAccount function)
+      allow delete: if false;
     }
     
     // Books collection - users can only access their own books
